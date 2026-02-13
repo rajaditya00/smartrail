@@ -1,0 +1,7 @@
+/* Delete the three old @tailwind lines and add this: */
+@import "tailwindcss";
+
+/* You can still keep your custom styles below */
+body {
+  @apply bg-slate-50 text-slate-900;
+}
