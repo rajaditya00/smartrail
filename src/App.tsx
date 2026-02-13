@@ -8,8 +8,10 @@ import { MENU_DATA } from './data/FoodItem';
 import type { RequestStatus, PnrRecord, LiveUser, ExchangeData } from './types/types';
 import { io, Socket } from 'socket.io-client';
 
+import { API_URL } from './config';
+
 // Initialize socket outside component to avoid reconnects on re-renders
-const socket: Socket = io('http://localhost:5000');
+const socket: Socket = io(API_URL);
 
 export default function App() {
   const [session, setSession] = useState<PnrRecord | null>(null);
