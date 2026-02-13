@@ -121,7 +121,7 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
                 <Ticket className="absolute left-4 top-4 text-blue-900" size={20} />
                 <input
                   className="w-full pl-12 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black outline-none focus:border-blue-500"
-                  placeholder="PNR (9102435650)"
+                  placeholder="Enter Your PNR"
                   value={formData.pnr}
                   onChange={e => setFormData({ ...formData, pnr: e.target.value })}
                   required
@@ -131,7 +131,7 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
                 <Phone className="absolute left-4 top-4 text-blue-900" size={20} />
                 <input
                   className="w-full pl-12 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black outline-none focus:border-blue-500"
-                  placeholder="Mobile (9102435650)"
+                  placeholder="Enter Associated Phone No."
                   value={formData.mobile}
                   onChange={e => setFormData({ ...formData, mobile: e.target.value })}
                   required
@@ -152,7 +152,7 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
               <Lock className="absolute left-4 top-4 text-slate-400" size={20} />
               <input
                 className="w-full pl-12 p-4 bg-slate-50 border-2 border-blue-600 rounded-2xl text-center text-2xl font-black tracking-widest outline-none"
-                placeholder="1234"
+                placeholder="Enter otp"
                 onChange={e => setFormData({ ...formData, otp: e.target.value })}
                 maxLength={4}
                 required
