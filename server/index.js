@@ -9,7 +9,12 @@ const User = require('./models/User');
 const Exchange = require('./models/Exchange');
 
 const app = express();
-app.use(cors());
+corOptions = {
+    origin: ["https://smartrail-ttjy.onrender.com", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    credentials: true
+}
+app.use(cors(corOptions));
 app.use(express.json());
 
 // API Routes
