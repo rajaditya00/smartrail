@@ -139,8 +139,15 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
                   required
                 />
               </div>
-              <button type="submit" className="w-full bg-blue-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 active:scale-95 transition-all">
-                {loading ? <Loader2 className="animate-spin" /> : <>Verify Trip <ArrowRight size={20} /></>}
+              <button type="submit" className="w-full bg-blue-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-70 disabled:grayscale" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  <>Verify Trip <ArrowRight size={20} /></>
+                )}
               </button>
             </form>
           </div>

@@ -214,20 +214,7 @@ export const SeatRequestModule = ({
                   Their Seat <span className="text-slate-900">{incomingRequest.requester.seatNo}</span> <span className="text-slate-400">➜</span> Your Seat <span className="text-slate-900">{currentSeat}</span>
                 </p>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onAcceptRequest && onAcceptRequest()}
-                  className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow-lg shadow-green-900/10 active:scale-95 transition-all"
-                >
-                  <CheckCircle2 size={16} />
-                </button>
-                <button
-                  onClick={() => onRejectRequest && onRejectRequest()}
-                  className="p-2 bg-slate-200 text-slate-500 rounded-lg hover:bg-slate-300 hover:text-red-600 active:scale-95 transition-all"
-                >
-                  <XCircle size={16} />
-                </button>
-              </div>
+
             </div>
           </div>
         )}

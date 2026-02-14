@@ -22,6 +22,7 @@ export default function App() {
 
   // New State for Live/Exchange
   const [isLive, setIsLive] = useState(false);
+
   const [liveUsers, setLiveUsers] = useState<LiveUser[]>([]);
   const [incomingRequest, setIncomingRequest] = useState<ExchangeData | null>(null);
   const [activeExchange, setActiveExchange] = useState<ExchangeData | null>(null);
@@ -271,7 +272,7 @@ export default function App() {
   if (!session) return <AuthModule onLogin={setSession} />;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32 font-sans overflow-x-hidden relative">
+    <div className="min-h-screen bg-slate-50 pb-32 font-sans overflow-x-hidden relative transition-opacity duration-500 opacity-100">
       <header className="bg-[#00205B] text-white p-6 rounded-b-[3rem] shadow-xl sticky top-0 z-50">
         <div className="flex justify-between items-center max-w-7xl mx-auto w-full px-4 md:px-8">
           <div>

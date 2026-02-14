@@ -16,7 +16,7 @@ export const MOCK_PNR_DATABASE: Record<string, PnrRecord> = {
     JourneyClass: "3A",
     JourneyQuota: "GN",
     TotalFare: "2450.00",
-    MobileNumber: "9102435650",
+    MobileNumber: "9134343434",
     ChartStatus: "CHART NOT PREPARED",
     Passenger: [
       {
@@ -24,6 +24,35 @@ export const MOCK_PNR_DATABASE: Record<string, PnrRecord> = {
         BookingStatus: "B1, 45, GN",
         CurrentStatus: "CNF",
         SeatNo: 45,
+        Coach: "B1",
+        BerthCode: "LB",
+        Age: 24,
+        Gender: "M"
+      }
+    ]
+  },
+  "2415678341": {
+    ResponseCode: "200",
+    PnrNumber: "2415678341",
+    TrainNo: "12310",
+    TrainName: "RAJEDRA NAGAR RAJDHANI",
+    DateOfJourney: "20-10-2025",
+    BookingDate: "15-08-2025",
+    SourceStation: "NDLS",
+    DestinationStation: "PNBE",
+    BoardingStation: "NDLS",
+    ReservationUpto: "PNBE",
+    JourneyClass: "3A",
+    JourneyQuota: "GN",
+    TotalFare: "2450.00",
+    MobileNumber: "6203836203",
+    ChartStatus: "CHART NOT PREPARED",
+    Passenger: [
+      {
+        PassengerName: "Raman Kumar",
+        BookingStatus: "B1, 49, GN",
+        CurrentStatus: "CNF",
+        SeatNo: 49,
         Coach: "B1",
         BerthCode: "LB",
         Age: 24,
