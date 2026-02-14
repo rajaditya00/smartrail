@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -87,6 +88,14 @@ app.post('/api/logout', async (req, res) => {
         console.error("Logout error:", err);
         res.status(500).json({ message: "Server error" });
     }
+});
+
+// Serve static files from the React frontend app
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// Everything else requests causes index.html to be returned
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 const server = http.createServer(app);
