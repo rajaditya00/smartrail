@@ -64,6 +64,31 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+app.post('/api/logout', async (req, res) => {
+    try {
+        const { pnr } = req.body;
+        if (!pnr) {
+            return res.status(400).json({ message: "PNR is required" });
+        }
+
+        const user = await User.findOneAndUpdate(
+            { pnr },
+            { isLoggedIn: false, isLive: false }, // Reset both login and live status
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        console.log(`User logged out: ${pnr}`);
+        res.json({ message: "Logged out successfully" });
+    } catch (err) {
+        console.error("Logout error:", err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 const server = http.createServer(app);
 
 // Use environment variable or fallback to local MongoDB

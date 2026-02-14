@@ -299,10 +299,30 @@ export default function App() {
               </button>
             )}
             <button
-              onClick={() => { setSession(null); setStatus('idle'); setCart({}); setIsLive(false); socket.disconnect(); socket.connect(); }}
-              className="p-3 bg-white/10 rounded-2xl hover:bg-red-500/20 transition-all active:scale-90"
+              onClick={async () => {
+                if (session && session.PnrNumber) {
+                  try {
+                    // Non-blocking logout call (best effort)
+                    fetch(`${API_URL}/api/logout`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ pnr: session.PnrNumber })
+                    }).catch(err => console.error("Logout failed", err));
+                  } catch (e) {
+                    console.error("Logout error", e);
+                  }
+                }
+                setSession(null);
+                setStatus('idle');
+                setCart({});
+                setIsLive(false);
+                socket.disconnect();
+                socket.connect();
+              }}
+              className="p-3 bg-white/10 rounded-2xl hover:bg-red-500/20 text-blue-200 hover:text-red-200 transition-all active:scale-90 flex items-center gap-2"
             >
               <LogOut size={20} />
+
             </button>
           </div>
         </div>
