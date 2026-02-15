@@ -1,10 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { AuthModule } from './components/AuthModule';
 import { SeatRequestModule } from './components/SeatRequestModule';
-import { CateringModule } from './components/CateringModule';
-import { PaymentModule } from './components/PaymentModule';
-import { Train, User, LogOut, Utensils, Map as MapIcon, Radio } from 'lucide-react';
-import { MENU_DATA } from './data/FoodItem';
+import { SupportModule } from './components/SupportModule';
+import { Train, User, LogOut, LifeBuoy, Map as MapIcon, Radio } from 'lucide-react';
 import type { RequestStatus, PnrRecord, LiveUser, ExchangeData } from './types/types';
 import { io, Socket } from 'socket.io-client';
 
@@ -15,10 +13,8 @@ const socket: Socket = io(API_URL);
 
 export default function App() {
   const [session, setSession] = useState<PnrRecord | null>(null);
-  const [activeTab, setActiveTab] = useState<'seats' | 'food'>('seats');
+  const [activeTab, setActiveTab] = useState<'seats' | 'support'>('seats');
   const [status, setStatus] = useState<RequestStatus>('idle');
-  const [cart, setCart] = useState<Record<number, number>>({});
-  const [showPayment, setShowPayment] = useState(false);
 
   // New State for Live/Exchange
   const [isLive, setIsLive] = useState(false);
@@ -335,34 +331,10 @@ export default function App() {
     }
   }, [activeExchange]);
 
-
-  // Update Cart helper
-  const handleUpdateCart = (id: number, delta: number) => {
-    setCart(prev => ({
-      ...prev,
-      [id]: Math.max(0, (prev[id] || 0) + delta)
-    }));
-  };
-
-  const calculateTotal = () => {
-    return Object.entries(cart).reduce((acc, [id, qty]) => {
-      const item = MENU_DATA.find(m => m.id === Number(id));
-      return acc + (item ? item.price * qty : 0);
-    }, 0);
-  };
-
   // Restore session on mount
   useEffect(() => {
     const restoreState = async () => {
       // 1. Session Restoration REMOVED to enforce strict single-session.
-
-      // 2. Restore Cart
-      const savedCart = localStorage.getItem('smartrail_cart');
-      if (savedCart) {
-        try {
-          setCart(JSON.parse(savedCart));
-        } catch (e) { console.error("Error loading cart", e); }
-      }
 
       // 3. Restore History
       const savedHistory = localStorage.getItem('smartrail_history');
@@ -375,11 +347,6 @@ export default function App() {
 
     restoreState();
   }, []);
-
-  // Persist Cart
-  useEffect(() => {
-    localStorage.setItem('smartrail_cart', JSON.stringify(cart));
-  }, [cart]);
 
   // Persist History
   useEffect(() => {
@@ -473,12 +440,10 @@ export default function App() {
 
                 // Clear local state
                 localStorage.removeItem('smartrail_session');
-                localStorage.removeItem('smartrail_cart');
                 localStorage.removeItem('smartrail_history');
 
                 setSession(null);
                 setStatus('idle');
-                setCart({});
                 setIsLive(false);
                 socket.disconnect();
                 socket.connect();
@@ -522,25 +487,13 @@ export default function App() {
             userPnr={session?.PnrNumber}
           />
         ) : (
-          <CateringModule
-            menu={MENU_DATA}
-            cart={cart}
-            onUpdateCart={handleUpdateCart}
-            onPay={() => setShowPayment(true)}
+          <SupportModule
+            pnr={session?.PnrNumber}
+            userMobile={session?.MobileNumber}
+            userName={userDetails?.name}
           />
         )}
       </main>
-
-      {showPayment && (
-        <PaymentModule
-          amount={calculateTotal()}
-          onSuccess={() => {
-            setShowPayment(false);
-            setCart({});
-          }}
-          onCancel={() => setShowPayment(false)}
-        />
-      )}
 
       <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xs bg-slate-900/95 backdrop-blur-md rounded-[2.5rem] p-2 flex gap-2 shadow-2xl border border-white/10 z-[50]">
         <button
@@ -550,10 +503,10 @@ export default function App() {
           <MapIcon size={16} /> Seats
         </button>
         <button
-          onClick={() => setActiveTab('food')}
-          className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-[2rem] font-black text-[10px] uppercase transition-all ${activeTab === 'food' ? 'bg-orange-500 text-white shadow-lg' : 'text-slate-500'}`}
+          onClick={() => setActiveTab('support')}
+          className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-[2rem] font-black text-[10px] uppercase transition-all ${activeTab === 'support' ? 'bg-orange-500 text-white shadow-lg' : 'text-slate-500'}`}
         >
-          <Utensils size={16} /> Catering
+          <LifeBuoy size={16} /> Support
         </button>
       </nav>
     </div>
