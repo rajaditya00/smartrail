@@ -370,8 +370,14 @@ io.on('connection', (socket) => {
                     requester: {
                         name: exchange.requesterName,
                         seatNo: exchange.requesterSeat,
-                        targetSeat: exchange.targetSeat
-                    }
+                        targetSeat: exchange.targetSeat,
+                        // Add reason/preference if available in exchange model (optional but good)
+                        reason: exchange.reason,
+                        preference: exchange.preference
+                    },
+                    // Add Coach Details for History/Receipt
+                    startCoach: requesterUser.coach, // User A's original coach
+                    endCoach: targetUser.coach       // User B's original coach (User A's new coach location)
                 };
 
                 io.to(exchange.requesterSocketId).emit('exchange-accepted', payload);

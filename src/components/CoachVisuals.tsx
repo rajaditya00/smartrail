@@ -26,7 +26,7 @@ export const CoachVisuals: React.FC<CoachVisualsProps> = ({
         </div>
 
         {/* STYLISH RED LIVE COUNTER */}
-        <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)">
+        <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
           <div className="relative flex items-center justify-center">
             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping absolute opacity-75" />
             <div className="w-1.5 h-1.5 bg-green-500 rounded-full relative" />
@@ -49,9 +49,9 @@ export const CoachVisuals: React.FC<CoachVisualsProps> = ({
               <div
                 key={s}
                 className={`h-10 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all duration-700 border-2 ${isNewlySwapped ? 'bg-green-600 border-green-300 text-white animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)] z-20' :
-                    isMe ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] z-10' :
-                      isOtherBroadcast || isBroadcasting ? 'bg-green-500 border-green-300 text-white' :
-                        'bg-slate-800/40 border-slate-700 text-slate-600'
+                  isMe ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] z-10' :
+                    isOtherBroadcast || isBroadcasting ? 'bg-green-500 border-green-300 text-white' :
+                      'bg-slate-800/40 border-slate-700 text-slate-600'
                   }`}
               >
                 {isMe ? (

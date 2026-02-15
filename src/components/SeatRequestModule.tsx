@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { CoachVisuals } from './CoachVisuals';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { Radio, XCircle, ChevronRight, CheckCircle2, Info, Send, Timer, Train, ArrowUpCircle, Download } from 'lucide-react';
+import { CoachVisuals } from './CoachVisuals';
 import type { RequestStatus, LiveUser, ExchangeData } from '../types/types';
 
 interface Props {
@@ -59,9 +61,25 @@ export const SeatRequestModule = ({
 
   const relevantPeers = livePeers.filter(p =>
     p.class === userClass &&
-    p.coach === userCoach &&
+    // Allow cross-coach exchange (same class)
+    // p.coach === userCoach && 
     p.seatNo !== currentSeat
   );
+
+
+  // Determine Display Coach (Switch to new coach if approved)
+  let displayCoach = userCoach;
+  if (status === 'approved' && activeExchange) {
+    // If I am Requester (my new seat is requesterNewSeat), I moved to Target's Coach (endCoach)
+    // If I am Target (my new seat is targetNewSeat), I moved to Requester's Coach (startCoach)
+    if (activeExchange.swappedSeat?.requesterNewSeat === currentSeat) {
+      displayCoach = activeExchange.endCoach || userCoach;
+    } else {
+      displayCoach = activeExchange.startCoach || userCoach;
+    }
+  }
+
+  const sameCoachPeers = relevantPeers.filter(p => p.coach === displayCoach);
 
   const incomingRef = useRef<HTMLDivElement>(null);
 
@@ -91,110 +109,165 @@ export const SeatRequestModule = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleDownloadTicket = (ex: ExchangeData) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  const handleDownloadTicket = async (ex: ExchangeData) => {
+    console.log("Starting PDF generation for exchange:", ex.exchangeId);
+    console.log("Starting PDF generation (Iframe Mode) for:", ex.exchangeId);
 
+    // 1. Create a hidden Iframe to isolate styles (Fixes 'oklch' error)
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
+    iframe.style.width = '800px'; // Ensure sufficient width
+    iframe.style.height = '1200px';
+    iframe.style.opacity = '0'; // Invisible
+    iframe.style.pointerEvents = 'none';
+    iframe.style.zIndex = '-1000';
+    document.body.appendChild(iframe);
+
+    // 2. Define Ticket HTML
+    const startCoachLabel = ex.startCoach ? `(Coach ${ex.startCoach})` : ex.startSeat ? `(Coach ${userCoach})` : '';
+    const endCoachLabel = ex.endCoach ? `(Coach ${ex.endCoach})` : `(Coach ${userCoach})`;
+
+    // HTML Content - Self-contained styles, NO external CSS
     const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>SeatExchange Receipt - ${ex.exchangeId.slice(-6).toUpperCase()}</title>
+        <title>Ticket</title>
         <style>
-          body { font-family: 'Courier New', Courier, monospace; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
-          .ticket {
-            background: white; border: 2px dashed #00205B; padding: 30px; width: 400px; position: relative;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+          /* Reset defaults to avoid browser inconsistencies */
+          body { 
+            margin: 0; 
+            padding: 40px; 
+            font-family: 'Courier New', Courier, monospace; 
+            background: #ffffff; 
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
           }
-          .header { text-align: center; border-bottom: 2px solid #00205B; padding-bottom: 10px; margin-bottom: 20px; }
-          .logo { font-size: 18px; font-weight: bold; color: #00205B; text-transform: uppercase; letter-spacing: 2px; }
-          .title { font-size: 14px; font-weight: bold; color: #666; margin-top: 5px; text-transform: uppercase; }
-          .row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; }
-          .label { font-weight: bold; color: #888; text-transform: uppercase; }
-          .value { font-weight: bold; color: #333; }
-          .swap-box {
-            background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; margin: 20px 0; text-align: center;
-          }
-          .swap-arrow { font-size: 20px; color: #00205B; margin: 0 10px; }
-          .stamp {
-            position: absolute; bottom: 80px; right: 20px;
-            border: 3px double #22c55e; color: #22c55e;
-            padding: 10px; font-weight: bold; text-transform: uppercase; font-size: 14px;
-            transform: rotate(-15deg); letter-spacing: 1px;
-            text-align: center; opacity: 0.8;
-          }
-          .footer { margin-top: 30px; font-size: 10px; text-align: center; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
-          @media print { body { background: white; } .no-print { display: none; } }
+          * { box-sizing: border-box; }
         </style>
       </head>
       <body>
-        <div class="ticket">
-          <div class="header">
-            <div class="logo">Smart Rail Management System</div>
-            <div class="title">Seat Exchange Receipt</div>
+        <div id="ticket-content" style="background: white; padding: 40px; width: 680px; border: 4px solid #00205B; position: relative; color: #333333; margin-top: 10px; margin-left: 10px; margin-right: 10px; margin-bottom: 30px; box-shadow: 0 0 0 10px #f0f4f8; ">
+          
+          <div style="text-align: center; border-bottom: 2px solid #00205B; padding-bottom: 20px; margin-bottom: 30px;  ">
+            <div style="font-size: 28px; font-weight: 900; color: #00205B; text-transform: uppercase; letter-spacing: 2px;">Smart Rail</div>
+            <div style="font-size: 18px; font-weight: bold; color: #666666; margin-top: 10px; text-transform: uppercase; letter-spacing: 4px;">Seat Exchange Receipt</div>
           </div>
 
-          <div class="row">
-            <span class="label">Passenger</span>
-            <span class="value">${userName}</span>
-          </div>
-          <div class="row">
-            <span class="label">PNR Number</span>
-            <span class="value">${userPnr}</span>
-          </div>
-          <div class="row" style="margin-top: 10px; border-top: 1px dotted #eee; padding-top: 10px;">
-            <span class="label">Exchange ID</span>
-            <span class="value">#${ex.exchangeId.slice(-8).toUpperCase()}</span>
-          </div>
-          <div class="row">
-            <span class="label">Date & Time</span>
-            <span class="value">${new Date(ex.expiresAt!).toLocaleString()}</span>
-          </div>
-
-          <div class="swap-box">
-            <div class="label" style="margin-bottom: 5px;">Seat Exchange Confirmed</div>
-            <div style="font-size: 24px; font-weight: 900; color: #00205B;">
-              ${ex.startSeat} <span class="swap-arrow">➜</span> ${ex.endSeat}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
+               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Passenger Name</div>
+               <div style="font-size: 16px; font-weight: bold; color: #000000;">${userName}</div>
             </div>
-            <div style="font-size: 10px; color: #666; margin-top: 5px;">
-              Coach ${userCoach} (${userClass})
+            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
+               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">PNR Number</div>
+               <div style="font-size: 16px; font-weight: bold; color: #000000;">${userPnr}</div>
+            </div>
+            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
+               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Exchange ID</div>
+               <div style="font-size: 16px; font-weight: bold; color: #000000;">#${ex.exchangeId.slice(-8).toUpperCase()}</div>
+            </div>
+            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
+               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Date & Time</div>
+               <div style="font-size: 16px; font-weight: bold; color: #000000;">${new Date(ex.expiresAt!).toLocaleString()}</div>
             </div>
           </div>
 
-          <div class="row">
-             <span class="label">Requested Reason</span>
-             <span class="value">${ex.requester?.reason || 'Mutual Agreement'}</span>
-          </div>
-          <div class="row">
-             <span class="label">Requested Preference</span>
-             <span class="value">${ex.requester?.preference || 'N/A'}</span>
-          </div>
-          <div class="row" style="background: #eff6ff; padding: 5px; border-radius: 4px;">
-             <span class="label" style="color: #1e40af;">Exchanged Against</span>
-             <span class="value" style="color: #1e3a8a;">${ex.requester?.preference || 'Any'} Preference</span>
+          <div style="background: #f8fafc; border: 2px dashed #00205B; padding: 30px; margin: 30px 0; text-align: center; border-radius: 10px;">
+            <div style="font-weight: bold; color: #00205B; text-transform: uppercase; margin-bottom: 20px; font-size: 14px; letter-spacing: 2px;">Seat Reassignment Details</div>
+            
+            <div style="display: flex; align-items: center; justify-content: center; gap: 40px;">
+               <div style="text-align: center;">
+                  <div style="font-size: 12px; color: #666666; text-transform: uppercase; font-weight: bold;">Old Seat</div> 
+                  <div style="font-size: 42px; font-weight: 900; color: #64748b; line-height: 1;">${ex.startSeat}</div>
+                  <div style="font-size: 12px; color: #ef4444; font-weight: bold; margin-top: 5px;">${startCoachLabel}</div>
+               </div>
+               
+               <div style="font-size: 30px; color: #00205B;">➡</div>
+               
+               <div style="text-align: center;">
+                  <div style="font-size: 12px; color: #00205B; text-transform: uppercase; font-weight: bold;">New Seat</div>
+                  <div style="font-size: 42px; font-weight: 900; color: #00205B; line-height: 1;">${ex.endSeat}</div>
+                  <div style="font-size: 12px; color: #22c55e; font-weight: bold; margin-top: 5px;">${endCoachLabel}</div>
+               </div>
+            </div>
+            
+            <div style="font-size: 14px; color: #00205B; font-weight: bold; margin-top: 20px; border-top: 1px solid #e2e8f0; pt-4; display: inline-block; padding-top: 10px;">
+              Journey Class: ${userClass}
+            </div>
           </div>
 
-          <div class="stamp">
-            Verified<br>Smart Rail
-            <div style="font-size: 20px;">✔</div>
+          <div style="border-top: 2px solid #00205B; padding-top: 20px; margin-top: 30px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px;">
+              <span style="font-weight: bold; color: #666666; text-transform: uppercase;">Reassignment Reason</span>
+              <span style="font-weight: bold; color: #000000; text-transform: uppercase;">${ex.requester?.reason || 'Mutual Agreement'}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px;">
+              <span style="font-weight: bold; color: #666666; text-transform: uppercase;">Original Preference</span>
+              <span style="font-weight: bold; color: #000000; text-transform: uppercase;">${ex.requester?.preference || 'N/A'}</span>
+            </div>
           </div>
 
-          <div class="footer">
-            This is a third-party exchange for passenger convenient journey only.<br>
-            Showing this receipt authorizes seat occupancy.
+          <div style="position: absolute; bottom: 80px; right: 40px; border: 4px solid #22c55e; color: #22c55e; padding: 10px 20px; font-weight: 900; text-transform: uppercase; font-size: 20px; transform: rotate(-10deg); letter-spacing: 4px; text-align: center; opacity: 0.9; background: rgba(255,255,255,0.9);">
+            VERIFIED
+            <div style="font-size: 12px; letter-spacing: 1px; color: #22c55e; border-top: 1px solid #22c55e; margin-top: 5px; padding-top: 5px;">Smart Rail System</div>
+          </div>
+
+          <div style="margin-top: 60px; font-size: 10px; text-align: center; color: #888888; border-top: 1px solid #eeeeee; padding-top: 15px; font-style: italic;">
+            This document is a computer-generated receipt for a third-party seat exchange facilitated by the Smart Rail System.<br>
+            It serves as proof of seat reassignment within the same journey class.
           </div>
         </div>
-        <script>
-          window.onload = () => {
-             window.print();
-          };
-        </script>
       </body>
       </html>
     `;
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    try {
+      // 3. Write to Iframe
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) throw new Error("Iframe document not accessible");
+
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      // Ensure Images/Fonts load (if any) - Small delay is usually enough for simple content
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const element = doc.getElementById('ticket-content');
+      if (!element) throw new Error("Ticket content not found in iframe");
+
+      // 4. Generate Canvas
+      const canvas = await html2canvas(element as HTMLElement, {
+        scale: 2,
+        useCORS: true,
+        logging: true,
+        backgroundColor: '#ffffff'
+      });
+      console.log("Canvas generated from Iframe");
+
+      // 5. Save PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`SmartRail_Ticket_${ex.exchangeId.slice(-6).toUpperCase()}.pdf`);
+
+    } catch (err) {
+      console.error("PDF Generation failed:", err);
+      // alert("Failed to generate PDF ticket.");
+    } finally {
+      // 6. Cleanup
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }
   };
 
   const handleStartBroadcast = () => {
@@ -207,8 +280,8 @@ export const SeatRequestModule = ({
       <CoachVisuals
         status={status}
         currentSeat={currentSeat}
-        otherBroadcasters={relevantPeers.map(p => p.seatNo)}
-        coachName={`Coach ${userCoach}`}
+        otherBroadcasters={sameCoachPeers.map(p => p.seatNo)}
+        coachName={`Coach ${displayCoach}`}
       />
 
       <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200">
@@ -216,7 +289,7 @@ export const SeatRequestModule = ({
           <div>
             <h2 className="text-lg font-black text-slate-800">Smart Exchange Hub</h2>
             <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest italic">
-              {userClass} Live Manifest • Coach {userCoach}
+              {userClass} Live Manifest • Coach {displayCoach}
             </p>
           </div>
 
@@ -244,7 +317,9 @@ export const SeatRequestModule = ({
                   <div>
                     <p className="text-[10px] uppercase font-black text-slate-500">Completed</p>
                     <p className="text-xs font-bold text-slate-800">
-                      Seat {ex.startSeat} <span className="text-slate-400 mx-1">➜</span> Seat {ex.endSeat}
+                      Seat {ex.startSeat} <span className="text-slate-400 font-normal">({ex.startCoach || userCoach})</span>
+                      <span className="text-slate-400 mx-1">➜</span>
+                      Seat {ex.endSeat} <span className="text-blue-600 font-black">({ex.endCoach || userCoach})</span>
                     </p>
                   </div>
                 </div>
@@ -331,18 +406,28 @@ export const SeatRequestModule = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">New</span>
+                    {request.startCoach && request.startCoach !== userCoach && (
+                      <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">
+                        Coach {request.startCoach}
+                      </span>
+                    )}
                     <h3 className="font-black text-slate-800 text-sm truncate leading-tight">
                       {request.requester?.name || "Passenger"}
                     </h3>
                   </div>
-                  <p className="text-[10px] text-slate-500 font-bold leading-tight flex items-center gap-1">
-                    Looking for: <span className="text-blue-600 font-black uppercase">{request.requester?.preference || "Any Seat"}</span>
+                  <p className="text-[10px] text-slate-500 font-bold leading-tight flex flex-wrap items-center gap-1.5">
+                    From <span className="text-purple-500/70 ml-0.5 font-bold">(Coach {request.startCoach || userCoach})</span>Looking for: <span className="text-blue-600 font-black uppercase">{request.requester?.preference || "Any Seat"}</span>
+                    {/* Show Coach if different */}
+                    {request.startCoach && request.startCoach !== userCoach && (
+                      <span className="text-orange-500 font-black ml-1">(Coach {request.startCoach})</span>
+                    )}
+                    {/* Show Reason Badge Prominently */}
+                    {request.requester?.reason && (
+                      <span className="text-slate-500 normal-case italic pl-2.5 border-l-2 border-slate-200">
+                        {request.requester.reason}
+                      </span>
+                    )}
                   </p>
-                  {request.requester?.reason && (
-                    <p className="text-[9px] text-slate-400 font-bold italic mt-0.5 border-l-2 border-slate-200 pl-1.5">
-                      "{request.requester.reason}"
-                    </p>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -397,6 +482,11 @@ export const SeatRequestModule = ({
                       </div>
                       <div>
                         <p className="text-xs font-black text-slate-800">{peer.passengerName}</p>
+                        {peer.coach !== userCoach && (
+                          <p className="text-[9px] text-orange-600 font-bold uppercase tracking-tight">
+                            Coach {peer.coach}
+                          </p>
+                        )}
                         <div className="text-[10px] text-blue-600 font-bold uppercase flex flex-col items-start gap-1 mt-1">
                           <div className="flex items-center gap-1">
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
@@ -449,7 +539,7 @@ export const SeatRequestModule = ({
                     <Radio size={28} className="text-blue-600 animate-pulse" />
                   </div>
                 </div>
-                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Scanning Coach {userClass}</h3>
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Scanning Coach {displayCoach}</h3>
                 <p className="text-[10px] text-slate-400 font-bold mt-2 animate-pulse">Waiting for peers...</p>
                 {!isLive && <p className="text-[9px] text-red-400 mt-2 font-bold">(You are not live)</p>}
               </div>
@@ -503,8 +593,16 @@ export const SeatRequestModule = ({
                 <div className="text-center">
                   <p className="text-blue-300 text-[8px] font-black uppercase mb-2 opacity-60">Previous</p>
                   <div className="text-2xl font-black text-white/40 line-through decoration-red-500/50">
-                    --
+                    {/* Shows the seat user GAVE UP */}
+                    {activeExchange?.swappedSeat?.requesterNewSeat === currentSeat
+                      ? activeExchange?.requester?.seatNo
+                      : activeExchange?.requester?.targetSeat}
                   </div>
+                  <p className="text-blue-300/40 text-[8px] font-black uppercase mt-1">
+                    Coach {activeExchange?.swappedSeat?.requesterNewSeat === currentSeat
+                      ? (activeExchange?.startCoach || userCoach)
+                      : (activeExchange?.endCoach || userCoach)}
+                  </p>
                 </div>
 
                 <div className="flex flex-col items-center gap-1">
@@ -518,7 +616,11 @@ export const SeatRequestModule = ({
                   <div className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] animate-in zoom-in-125 duration-500 delay-300">
                     {currentSeat}
                   </div>
-                  <p className="text-orange-400 text-[9px] font-black mt-1 uppercase tracking-tighter">Coach {userClass.split(' ')[0]}</p>
+                  <p className="text-orange-400 text-[9px] font-black mt-1 uppercase tracking-tighter">
+                    Coach {activeExchange?.swappedSeat?.requesterNewSeat === currentSeat
+                      ? (activeExchange?.endCoach || userCoach)
+                      : (activeExchange?.startCoach || userCoach)}
+                  </p>
                 </div>
               </div>
 
@@ -554,6 +656,6 @@ export const SeatRequestModule = ({
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };

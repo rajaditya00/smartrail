@@ -61,23 +61,31 @@ export default function App() {
 
           let oldSeat = 0;
           let newSeat = 0;
+          let oldCoach = userDetails?.coach || "";
+          let newCoach = userDetails?.coach || "";
 
           if (activeExchange.requester && activeExchange.swappedSeat && userDetails) {
             if (activeExchange.requester.name === userDetails.name) {
               // I am requester
               oldSeat = activeExchange.requester.seatNo;
               newSeat = activeExchange.swappedSeat.requesterNewSeat;
+              oldCoach = activeExchange.startCoach || userDetails.coach; // My original
+              newCoach = activeExchange.endCoach || userDetails.coach;   // Target's original
             } else {
               // I am target
               oldSeat = activeExchange.requester.targetSeat || 0;
               newSeat = activeExchange.swappedSeat.targetNewSeat;
+              oldCoach = activeExchange.endCoach || userDetails.coach;   // My original
+              newCoach = activeExchange.startCoach || userDetails.coach; // Requester's original
             }
           }
 
           const historyItem: ExchangeData = {
             ...activeExchange,
             startSeat: oldSeat,
-            endSeat: newSeat
+            endSeat: newSeat,
+            startCoach: oldCoach,
+            endCoach: newCoach
           };
 
           // Add to history
@@ -123,10 +131,10 @@ export default function App() {
 
     // Socket Event Listeners
     socket.on('update-live-users', (users) => {
-      // Filter out self AND users in different coach
+      // Filter out self AND users in different CLASS (Coach can be different now)
       const others = users.filter((u: any) =>
         u.socketId !== socket.id &&
-        (userDetails?.coach ? u.coach === userDetails.coach : true)
+        (userDetails?.class ? u.class === userDetails.class : true)
       );
       setLiveUsers(others);
     });
@@ -292,21 +300,33 @@ export default function App() {
         // If both are different, we check against what we held before.
 
         let newSeat = userDetails.seatNo;
+        let newCoach = userDetails.coach;
 
         if (s1 !== userDetails.seatNo && s2 === userDetails.seatNo) {
           newSeat = s1;
+          // If I was requester (holding s2? No s2 is what Target gets, i.e. my old seat).
+          // Wait, s2 is targetNewSeat. Target gets my old seat. So s2 === my old seat.
+          // So I am Requester. I move to s1. s1 is in endCoach.
+          newCoach = activeExchange.endCoach || userDetails.coach;
         } else if (s2 !== userDetails.seatNo && s1 === userDetails.seatNo) {
           newSeat = s2;
+          // If I was target (holding s1? No s1 is what Requester gets, i.e. my old seat).
+          // s1 is requesterNewSeat. Requester gets my old seat. So s1 === my old seat.
+          // So I am Target. I move to s2. s2 is in startCoach.
+          newCoach = activeExchange.startCoach || userDetails.coach;
         } else if (s1 !== userDetails.seatNo) {
           // Fallback: assume s1 if logic is ambiguous or force swap
           newSeat = s1;
+          // Ambiguous case: default to target's coach if available, else keep own
+          newCoach = activeExchange.endCoach || userDetails.coach;
         }
 
-        if (newSeat !== userDetails.seatNo) {
-          console.log(`Swapping seat locally: ${userDetails.seatNo} -> ${newSeat}`);
+        if (newSeat !== userDetails.seatNo || newCoach !== userDetails.coach) {
+          console.log(`Swapping seat locally: ${userDetails.coach} ${userDetails.seatNo} -> ${newCoach} ${newSeat}`);
           const updatedSession = JSON.parse(JSON.stringify(session));
           if (updatedSession.Passenger && updatedSession.Passenger.length > 0) {
             updatedSession.Passenger[0].SeatNo = newSeat;
+            updatedSession.Passenger[0].Coach = newCoach;
             setSession(updatedSession);
           }
         }

@@ -173,4 +173,6 @@ export interface ExchangeData {
   // History specific
   startSeat?: number;
   endSeat?: number;
+  startCoach?: string; // User's original coach
+  endCoach?: string;   // Target's coach
 }
