@@ -239,6 +239,7 @@ export default function App() {
     setIsLive(false);
     setStatus('idle');
     setSentRequests([]);
+    setIncomingRequests([]);
   };
 
   const handleInitiateRequest = (targetPeer: any) => {

@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { Radio, XCircle, ChevronRight, CheckCircle2, Info, Send, Timer, Train, ArrowUpCircle, Download } from 'lucide-react';
 import { CoachVisuals } from './CoachVisuals';
 import type { RequestStatus, LiveUser, ExchangeData } from '../types/types';
+import { generateTicketPdf } from '../utils/generateTicketPdf';
 
 interface Props {
   status: RequestStatus;
@@ -110,164 +109,14 @@ export const SeatRequestModule = ({
   };
 
   const handleDownloadTicket = async (ex: ExchangeData) => {
-    console.log("Starting PDF generation for exchange:", ex.exchangeId);
-    console.log("Starting PDF generation (Iframe Mode) for:", ex.exchangeId);
-
-    // 1. Create a hidden Iframe to isolate styles (Fixes 'oklch' error)
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.top = '0';
-    iframe.style.left = '0';
-    iframe.style.width = '800px'; // Ensure sufficient width
-    iframe.style.height = '1200px';
-    iframe.style.opacity = '0'; // Invisible
-    iframe.style.pointerEvents = 'none';
-    iframe.style.zIndex = '-1000';
-    document.body.appendChild(iframe);
-
-    // 2. Define Ticket HTML
-    const startCoachLabel = ex.startCoach ? `(Coach ${ex.startCoach})` : ex.startSeat ? `(Coach ${userCoach})` : '';
-    const endCoachLabel = ex.endCoach ? `(Coach ${ex.endCoach})` : `(Coach ${userCoach})`;
-
-    // HTML Content - Self-contained styles, NO external CSS
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Ticket</title>
-        <style>
-          /* Reset defaults to avoid browser inconsistencies */
-          body { 
-            margin: 0; 
-            padding: 40px; 
-            font-family: 'Courier New', Courier, monospace; 
-            background: #ffffff; 
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-          }
-          * { box-sizing: border-box; }
-        </style>
-      </head>
-      <body>
-        <div id="ticket-content" style="background: white; padding: 40px; width: 680px; border: 4px solid #00205B; position: relative; color: #333333; margin-top: 10px; margin-left: 10px; margin-right: 10px; margin-bottom: 30px; box-shadow: 0 0 0 10px #f0f4f8; ">
-          
-          <div style="text-align: center; border-bottom: 2px solid #00205B; padding-bottom: 20px; margin-bottom: 30px;  ">
-            <div style="font-size: 28px; font-weight: 900; color: #00205B; text-transform: uppercase; letter-spacing: 2px;">Smart Rail</div>
-            <div style="font-size: 18px; font-weight: bold; color: #666666; margin-top: 10px; text-transform: uppercase; letter-spacing: 4px;">Seat Exchange Receipt</div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
-            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
-               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Passenger Name</div>
-               <div style="font-size: 16px; font-weight: bold; color: #000000;">${userName}</div>
-            </div>
-            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
-               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">PNR Number</div>
-               <div style="font-size: 16px; font-weight: bold; color: #000000;">${userPnr}</div>
-            </div>
-            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
-               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Exchange ID</div>
-               <div style="font-size: 16px; font-weight: bold; color: #000000;">#${ex.exchangeId.slice(-8).toUpperCase()}</div>
-            </div>
-            <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
-               <div style="font-size: 10px; color: #888888; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Date & Time</div>
-               <div style="font-size: 16px; font-weight: bold; color: #000000;">${new Date(ex.expiresAt!).toLocaleString()}</div>
-            </div>
-          </div>
-
-          <div style="background: #f8fafc; border: 2px dashed #00205B; padding: 30px; margin: 30px 0; text-align: center; border-radius: 10px;">
-            <div style="font-weight: bold; color: #00205B; text-transform: uppercase; margin-bottom: 20px; font-size: 14px; letter-spacing: 2px;">Seat Reassignment Details</div>
-            
-            <div style="display: flex; align-items: center; justify-content: center; gap: 40px;">
-               <div style="text-align: center;">
-                  <div style="font-size: 12px; color: #666666; text-transform: uppercase; font-weight: bold;">Old Seat</div> 
-                  <div style="font-size: 42px; font-weight: 900; color: #64748b; line-height: 1;">${ex.startSeat}</div>
-                  <div style="font-size: 12px; color: #ef4444; font-weight: bold; margin-top: 5px;">${startCoachLabel}</div>
-               </div>
-               
-               <div style="font-size: 30px; color: #00205B;">➡</div>
-               
-               <div style="text-align: center;">
-                  <div style="font-size: 12px; color: #00205B; text-transform: uppercase; font-weight: bold;">New Seat</div>
-                  <div style="font-size: 42px; font-weight: 900; color: #00205B; line-height: 1;">${ex.endSeat}</div>
-                  <div style="font-size: 12px; color: #22c55e; font-weight: bold; margin-top: 5px;">${endCoachLabel}</div>
-               </div>
-            </div>
-            
-            <div style="font-size: 14px; color: #00205B; font-weight: bold; margin-top: 20px; border-top: 1px solid #e2e8f0; pt-4; display: inline-block; padding-top: 10px;">
-              Journey Class: ${userClass}
-            </div>
-          </div>
-
-          <div style="border-top: 2px solid #00205B; padding-top: 20px; margin-top: 30px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px;">
-              <span style="font-weight: bold; color: #666666; text-transform: uppercase;">Reassignment Reason</span>
-              <span style="font-weight: bold; color: #000000; text-transform: uppercase;">${ex.requester?.reason || 'Mutual Agreement'}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px;">
-              <span style="font-weight: bold; color: #666666; text-transform: uppercase;">Original Preference</span>
-              <span style="font-weight: bold; color: #000000; text-transform: uppercase;">${ex.requester?.preference || 'N/A'}</span>
-            </div>
-          </div>
-
-          <div style="position: absolute; bottom: 80px; right: 40px; border: 4px solid #22c55e; color: #22c55e; padding: 10px 20px; font-weight: 900; text-transform: uppercase; font-size: 20px; transform: rotate(-10deg); letter-spacing: 4px; text-align: center; opacity: 0.9; background: rgba(255,255,255,0.9);">
-            VERIFIED
-            <div style="font-size: 12px; letter-spacing: 1px; color: #22c55e; border-top: 1px solid #22c55e; margin-top: 5px; padding-top: 5px;">Smart Rail System</div>
-          </div>
-
-          <div style="margin-top: 60px; font-size: 10px; text-align: center; color: #888888; border-top: 1px solid #eeeeee; padding-top: 15px; font-style: italic;">
-            This document is a computer-generated receipt for a third-party seat exchange facilitated by the Smart Rail System.<br>
-            It serves as proof of seat reassignment within the same journey class.
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    try {
-      // 3. Write to Iframe
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!doc) throw new Error("Iframe document not accessible");
-
-      doc.open();
-      doc.write(htmlContent);
-      doc.close();
-
-      // Ensure Images/Fonts load (if any) - Small delay is usually enough for simple content
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const element = doc.getElementById('ticket-content');
-      if (!element) throw new Error("Ticket content not found in iframe");
-
-      // 4. Generate Canvas
-      const canvas = await html2canvas(element as HTMLElement, {
-        scale: 2,
-        useCORS: true,
-        logging: true,
-        backgroundColor: '#ffffff'
-      });
-      console.log("Canvas generated from Iframe");
-
-      // 5. Save PDF
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`SmartRail_Ticket_${ex.exchangeId.slice(-6).toUpperCase()}.pdf`);
-
-    } catch (err) {
-      console.error("PDF Generation failed:", err);
-      // alert("Failed to generate PDF ticket.");
-    } finally {
-      // 6. Cleanup
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
-      }
-    }
+    // Call the utility function
+    await generateTicketPdf({
+      exchange: ex,
+      userName: userName,
+      userPnr: userPnr,
+      userClass: userClass,
+      userCoach: userCoach
+    });
   };
 
   const handleStartBroadcast = () => {
@@ -303,41 +152,7 @@ export const SeatRequestModule = ({
           )}
         </div>
 
-        {/* 0. EXCHANGE HISTORY (Shortened) */}
-        {status === 'idle' && exchangeHistory.length > 0 && (
-          <div className="mb-6 space-y-3">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Previous Exchanges</h3>
 
-            {exchangeHistory.map((ex, idx) => (
-              <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between shadow-sm opacity-80 hover:opacity-100 transition-opacity">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                    <CheckCircle2 size={16} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase font-black text-slate-500">Completed</p>
-                    <p className="text-xs font-bold text-slate-800">
-                      Seat {ex.startSeat} <span className="text-slate-400 font-normal">({ex.startCoach || userCoach})</span>
-                      <span className="text-slate-400 mx-1">➜</span>
-                      Seat {ex.endSeat} <span className="text-blue-600 font-black">({ex.endCoach || userCoach})</span>
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right flex flex-col items-end gap-1">
-                  <span className="text-[10px] font-bold text-slate-400 block">
-                    {new Date(ex.expiresAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <button
-                    onClick={() => handleDownloadTicket(ex)}
-                    className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors uppercase tracking-tight"
-                  >
-                    <Download size={10} /> Receipt
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* 1. SEAT PREFERENCE SELECTION VIEW */}
         {showPreferenceSelection && status === 'idle' && (
@@ -416,10 +231,10 @@ export const SeatRequestModule = ({
                     </h3>
                   </div>
                   <p className="text-[10px] text-slate-500 font-bold leading-tight flex flex-wrap items-center gap-1.5">
-                    From <span className="text-purple-500/70 ml-0.5 font-bold">(Coach {request.startCoach || userCoach})</span>Looking for: <span className="text-blue-600 font-black uppercase">{request.requester?.preference || "Any Seat"}</span>
+                    Looking for: <span className="text-blue-600 font-black uppercase">{request.requester?.preference || "Any Seat"}</span>
                     {/* Show Coach if different */}
                     {request.startCoach && request.startCoach !== userCoach && (
-                      <span className="text-orange-500 font-black ml-1">(Coach {request.startCoach})</span>
+                      <span className="text-orange-500 font-black ml-1">(Coach {userCoach})</span>
                     )}
                     {/* Show Reason Badge Prominently */}
                     {request.requester?.reason && (
@@ -655,6 +470,44 @@ export const SeatRequestModule = ({
             </p>
           </div>
         )}
+
+        {/* 0. EXCHANGE HISTORY (Shortened) */}
+        {status === 'idle' && exchangeHistory.length > 0 && (
+          <div className="mb-6 space-y-3">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Previous Exchanges</h3>
+
+            {exchangeHistory.map((ex, idx) => (
+              <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between shadow-sm opacity-80 hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                    <CheckCircle2 size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-black text-slate-500">Completed</p>
+                    <p className="text-xs font-bold text-slate-800">
+                      Seat {ex.startSeat} <span className="text-slate-400 font-normal">({ex.startCoach || userCoach})</span>
+                      <span className="text-slate-400 mx-1">➜</span>
+                      Seat {ex.endSeat} <span className="text-blue-600 font-black">({ex.endCoach || userCoach})</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right flex flex-col items-end gap-1">
+                  <span className="text-[10px] font-bold text-slate-400 block">
+                    {new Date(ex.expiresAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <button
+                    onClick={() => handleDownloadTicket(ex)}
+                    className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors uppercase tracking-tight"
+                  >
+                    <Download size={10} /> Receipt
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+
       </div>
     </div >
   );

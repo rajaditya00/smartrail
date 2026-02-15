@@ -19,64 +19,71 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
 
     const pnrInput = formData.pnr.trim();
     const mobileInput = formData.mobile.trim();
-
-    // 1. Look up details from Local Mock Data (Source of Truth)
-    console.log("Checking local MOCK_PNR_DATABASE...");
-    let userPayload: any = { pnr: pnrInput, mobile: mobileInput };
-
-    const record = Object.values(MOCK_PNR_DATABASE).find(
-      (r) => r.PnrNumber === pnrInput && r.MobileNumber === mobileInput
-    );
-
-    if (record) {
-      console.log("User found in local mock data. Preparing full payload...");
-      if (record.Passenger && record.Passenger.length > 0) {
-        const p = record.Passenger[0];
-        userPayload = {
-          ...userPayload,
-          passengerName: p.PassengerName,
-          coach: p.Coach,
-          seatNo: p.SeatNo,
-          bookingStatus: p.BookingStatus,
-          trainNo: record.TrainNo,
-          trainName: record.TrainName,
-          class: record.JourneyClass
-        };
-      }
-    } else {
-      console.warn("User not found in local mock. Attempting login with PNR/Mobile only...");
-    }
+    let finalUserPayload: any = null;
 
     try {
-      // 2. Send details to Backend (Validate Only - No Login Yet)
-      console.log("Validating user with backend:", userPayload);
-      // We check if user is ALREADY logged in, but we don't log them in yet.
+      // 1. Check Server (MongoDB) First
+      console.log("Checking Server for User...");
       const response = await fetch(`${API_URL}/api/validate-user`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pnr: pnrInput, mobile: mobileInput }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("User validated for OTP:", data);
-
-        // Store payload for actual login after OTP
-        setMatchedUser(userPayload);
-        setStep('otp');
-      } else if (response.status === 403) {
-        // Strict single session: Show error.
+      if (response.status === 403) {
         const errData = await response.json();
-        throw new Error(errData.message || "User already logged in on another device/tab.");
-      } else {
-        const errData = await response.json();
-        throw new Error(errData.message || "Validation failed.");
+        throw new Error(errData.message || "User already logged in.");
       }
+
+      const data = await response.json();
+
+      if (data.found && data.data) {
+        console.log("User found in MongoDB:", data.data);
+        finalUserPayload = {
+          pnr: data.data.PnrNumber,
+          mobile: data.data.MobileNumber,
+          passengerName: data.data.Passenger[0].PassengerName,
+          coach: data.data.Passenger[0].Coach,
+          seatNo: data.data.Passenger[0].SeatNo,
+          bookingStatus: data.data.Passenger[0].BookingStatus,
+          trainNo: data.data.TrainNo,
+          trainName: data.data.TrainName,
+          class: data.data.JourneyClass
+        };
+      } else {
+        // 2. Fallback to Local Mock Data
+        console.warn("User not found in Server. Checking Local Mock Data...");
+        const record = Object.values(MOCK_PNR_DATABASE).find(
+          (r) => r.PnrNumber === pnrInput && r.MobileNumber === mobileInput
+        );
+
+        if (record && record.Passenger.length > 0) {
+          console.log("User found in Local Mock Data.");
+          const p = record.Passenger[0];
+          finalUserPayload = {
+            pnr: pnrInput,
+            mobile: mobileInput,
+            passengerName: p.PassengerName,
+            coach: p.Coach,
+            seatNo: p.SeatNo,
+            bookingStatus: p.BookingStatus,
+            trainNo: record.TrainNo,
+            trainName: record.TrainName,
+            class: record.JourneyClass
+          };
+        }
+      }
+
+      if (finalUserPayload) {
+        setMatchedUser(finalUserPayload);
+        setStep('otp');
+      } else {
+        throw new Error("Invalid PNR or Mobile Number. Please check details.");
+      }
+
     } catch (apiErr: any) {
       console.error("Login Error:", apiErr);
-      setError(apiErr.message || "Login failed. Please check your details.");
+      setError(apiErr.message || "Login failed.");
     } finally {
       setLoading(false);
     }

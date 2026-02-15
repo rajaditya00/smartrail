@@ -21,19 +21,40 @@ app.use(express.json());
 // API Routes
 
 // Pre-Check User (Validate before OTP)
+// Pre-Check User (Validate before OTP)
 app.post('/api/validate-user', async (req, res) => {
     try {
         const { pnr, mobile } = req.body;
 
-        // Check if user exists and is logged in
+        // Check if user exists
         const existingUser = await User.findOne({ pnr, mobile });
 
-        if (existingUser && existingUser.isLoggedIn) {
-            return res.status(403).json({ message: "User already logged in on another device." });
+        if (existingUser) {
+            if (existingUser.isLoggedIn) {
+                return res.status(403).json({ message: "User already logged in on another device." });
+            }
+
+            // Construct payload similar to PnrRecord for frontend
+            const userData = {
+                PnrNumber: existingUser.pnr,
+                MobileNumber: existingUser.mobile,
+                TrainNo: existingUser.trainNo,
+                TrainName: existingUser.trainName,
+                JourneyClass: existingUser.class,
+                Passenger: [{
+                    PassengerName: existingUser.passengerName,
+                    SeatNo: existingUser.seatNo,
+                    Coach: existingUser.coach,
+                    BookingStatus: existingUser.bookingStatus
+                }]
+            };
+
+            return res.status(200).json({ found: true, data: userData, message: "User found in database." });
         }
 
-        // User not logged in (or doesn't exist yet), safe to proceed to OTP
-        res.status(200).json({ message: "User validated for OTP." });
+        // User not found in DB -> Frontend should use MOCK_PNR_DATABASE fallback
+        return res.status(200).json({ found: false, message: "User not found in DB. Proceed to Mock check." });
+
     } catch (err) {
         console.error("Validation error:", err);
         res.status(500).json({ message: "Server error" });
@@ -316,11 +337,22 @@ io.on('connection', (socket) => {
                 const requesterUser = await User.findOne({ socketId: exchange.requesterSocketId });
                 const targetUser = await User.findOne({ socketId: exchange.targetSocketId });
 
+                let requesterOriginalCoach = '';
+                let targetOriginalCoach = '';
+
                 if (requesterUser && targetUser) {
+                    requesterOriginalCoach = requesterUser.coach;
+                    targetOriginalCoach = targetUser.coach;
+
                     // Swap Seats
                     const tempSeat = requesterUser.seatNo;
                     requesterUser.seatNo = targetUser.seatNo;
                     targetUser.seatNo = tempSeat;
+
+                    // Swap Coach
+                    const tempCoach = requesterUser.coach;
+                    requesterUser.coach = targetUser.coach;
+                    targetUser.coach = tempCoach;
 
                     // Stop Live
                     requesterUser.isLive = false;
@@ -376,8 +408,8 @@ io.on('connection', (socket) => {
                         preference: exchange.preference
                     },
                     // Add Coach Details for History/Receipt
-                    startCoach: requesterUser.coach, // User A's original coach
-                    endCoach: targetUser.coach       // User B's original coach (User A's new coach location)
+                    startCoach: requesterOriginalCoach, // User A's original coach
+                    endCoach: targetOriginalCoach       // User B's original coach (User A's new coach location)
                 };
 
                 io.to(exchange.requesterSocketId).emit('exchange-accepted', payload);
