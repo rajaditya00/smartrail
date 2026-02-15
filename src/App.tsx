@@ -26,6 +26,10 @@ export default function App() {
   const [liveUsers, setLiveUsers] = useState<LiveUser[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<ExchangeData[]>([]);
   const [activeExchange, setActiveExchange] = useState<ExchangeData | null>(null);
+
+  // Notification State
+  const [notification, setNotification] = useState<{ message: string; visible: boolean } | null>(null);
+
   const [myPreferences, setMyPreferences] = useState<{ type: string; reason: string } | null>(null);
   const [exchangeHistory, setExchangeHistory] = useState<ExchangeData[]>([]);
   const [sentRequests, setSentRequests] = useState<string[]>([]);
@@ -129,6 +133,23 @@ export default function App() {
 
     socket.on('exchange-request', (data) => {
       console.log("Incoming exchange request:", data);
+
+      // 1. Vibrate Device (Buzz-Pause-Buzz)
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+
+      // 2. Show Temporary Notification
+      setNotification({
+        message: `New Seat Exchange Request from ${data.requester.name}`,
+        visible: true
+      });
+
+      // Hide after 3 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 6000);
+
       setIncomingRequests(prev => {
         // Prevent duplicates
         if (prev.find(r => r.exchangeId === data.exchangeId)) return prev;
@@ -376,6 +397,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32 font-sans overflow-x-hidden relative transition-opacity duration-500 opacity-100">
+      {/* Top Notification Toast */}
+      {notification && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center animate-bounce">
+          <span className="mr-2">🔔</span>
+          <p className="font-semibold text-sm">{notification.message}</p>
+        </div>
+      )}
+
       <header className="bg-[#00205B] text-white p-6 rounded-b-[3rem] shadow-xl sticky top-0 z-50">
         <div className="flex justify-between items-center max-w-7xl mx-auto w-full px-4 md:px-8">
           <div>
@@ -466,6 +495,10 @@ export default function App() {
             onGoLive={handleGoLive}
             onStopLive={handleStopLive}
             onCancelSentRequest={handleCancelSentRequest}
+
+            // Pass user details for receipt
+            userName={userDetails?.name}
+            userPnr={session?.PnrNumber}
           />
         ) : (
           <CateringModule

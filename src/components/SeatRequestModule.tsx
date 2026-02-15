@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { CoachVisuals } from './CoachVisuals';
-import { Radio, XCircle, ChevronRight, CheckCircle2, Info, Send, Timer, Train, ArrowUpCircle } from 'lucide-react';
+import { Radio, XCircle, ChevronRight, CheckCircle2, Info, Send, Timer, Train, ArrowUpCircle, Download } from 'lucide-react';
 import type { RequestStatus, LiveUser, ExchangeData } from '../types/types';
 
 interface Props {
@@ -22,6 +22,9 @@ interface Props {
   onGoLive: (preferences?: any) => void;
   onStopLive: () => void;
   onCancelSentRequest?: (targetId: string) => void;
+  // User Details for Ticket
+  userName?: string;
+  userPnr?: string;
 }
 
 export const SeatRequestModule = ({
@@ -42,7 +45,9 @@ export const SeatRequestModule = ({
   onCancelExchange,
   onGoLive,
   onStopLive,
-  onCancelSentRequest
+  onCancelSentRequest,
+  userName = "Passenger",
+  userPnr = "N/A"
 }: Props) => {
   const [showPreferenceSelection, setShowPreferenceSelection] = useState(false);
   const [selectedSeatType, setSelectedSeatType] = useState('');
@@ -84,6 +89,112 @@ export const SeatRequestModule = ({
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleDownloadTicket = (ex: ExchangeData) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>SeatExchange Receipt - ${ex.exchangeId.slice(-6).toUpperCase()}</title>
+        <style>
+          body { font-family: 'Courier New', Courier, monospace; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+          .ticket {
+            background: white; border: 2px dashed #00205B; padding: 30px; width: 400px; position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+          }
+          .header { text-align: center; border-bottom: 2px solid #00205B; padding-bottom: 10px; margin-bottom: 20px; }
+          .logo { font-size: 18px; font-weight: bold; color: #00205B; text-transform: uppercase; letter-spacing: 2px; }
+          .title { font-size: 14px; font-weight: bold; color: #666; margin-top: 5px; text-transform: uppercase; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; }
+          .label { font-weight: bold; color: #888; text-transform: uppercase; }
+          .value { font-weight: bold; color: #333; }
+          .swap-box {
+            background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; margin: 20px 0; text-align: center;
+          }
+          .swap-arrow { font-size: 20px; color: #00205B; margin: 0 10px; }
+          .stamp {
+            position: absolute; bottom: 80px; right: 20px;
+            border: 3px double #22c55e; color: #22c55e;
+            padding: 10px; font-weight: bold; text-transform: uppercase; font-size: 14px;
+            transform: rotate(-15deg); letter-spacing: 1px;
+            text-align: center; opacity: 0.8;
+          }
+          .footer { margin-top: 30px; font-size: 10px; text-align: center; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+          @media print { body { background: white; } .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="ticket">
+          <div class="header">
+            <div class="logo">Smart Rail Management System</div>
+            <div class="title">Seat Exchange Receipt</div>
+          </div>
+
+          <div class="row">
+            <span class="label">Passenger</span>
+            <span class="value">${userName}</span>
+          </div>
+          <div class="row">
+            <span class="label">PNR Number</span>
+            <span class="value">${userPnr}</span>
+          </div>
+          <div class="row" style="margin-top: 10px; border-top: 1px dotted #eee; padding-top: 10px;">
+            <span class="label">Exchange ID</span>
+            <span class="value">#${ex.exchangeId.slice(-8).toUpperCase()}</span>
+          </div>
+          <div class="row">
+            <span class="label">Date & Time</span>
+            <span class="value">${new Date(ex.expiresAt!).toLocaleString()}</span>
+          </div>
+
+          <div class="swap-box">
+            <div class="label" style="margin-bottom: 5px;">Seat Exchange Confirmed</div>
+            <div style="font-size: 24px; font-weight: 900; color: #00205B;">
+              ${ex.startSeat} <span class="swap-arrow">➜</span> ${ex.endSeat}
+            </div>
+            <div style="font-size: 10px; color: #666; margin-top: 5px;">
+              Coach ${userCoach} (${userClass})
+            </div>
+          </div>
+
+          <div class="row">
+             <span class="label">Requested Reason</span>
+             <span class="value">${ex.requester?.reason || 'Mutual Agreement'}</span>
+          </div>
+          <div class="row">
+             <span class="label">Requested Preference</span>
+             <span class="value">${ex.requester?.preference || 'N/A'}</span>
+          </div>
+          <div class="row" style="background: #eff6ff; padding: 5px; border-radius: 4px;">
+             <span class="label" style="color: #1e40af;">Exchanged Against</span>
+             <span class="value" style="color: #1e3a8a;">${ex.requester?.preference || 'Any'} Preference</span>
+          </div>
+
+          <div class="stamp">
+            Verified<br>Smart Rail
+            <div style="font-size: 20px;">✔</div>
+          </div>
+
+          <div class="footer">
+            This is a third-party exchange for passenger convenient journey only.<br>
+            Showing this receipt authorizes seat occupancy.
+          </div>
+        </div>
+        <script>
+          window.onload = () => {
+             window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const handleStartBroadcast = () => {
@@ -137,10 +248,16 @@ export const SeatRequestModule = ({
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end gap-1">
                   <span className="text-[10px] font-bold text-slate-400 block">
                     {new Date(ex.expiresAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
+                  <button
+                    onClick={() => handleDownloadTicket(ex)}
+                    className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors uppercase tracking-tight"
+                  >
+                    <Download size={10} /> Receipt
+                  </button>
                 </div>
               </div>
             ))}
