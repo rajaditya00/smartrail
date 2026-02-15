@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CoachVisuals } from './CoachVisuals';
-import { Radio, XCircle, ChevronRight, CheckCircle2, Info, Send, Timer, Train } from 'lucide-react';
+import { Radio, XCircle, ChevronRight, CheckCircle2, Info, Send, Timer, Train, ArrowUpCircle } from 'lucide-react';
 import type { RequestStatus, LiveUser, ExchangeData } from '../types/types';
 
 interface Props {
@@ -15,12 +15,13 @@ interface Props {
   activeExchange: ExchangeData | null;
   exchangeHistory?: ExchangeData[];
   sentRequests?: string[];
-  incomingRequest?: ExchangeData | null;
-  onAcceptRequest?: () => void;
-  onRejectRequest?: () => void;
+  incomingRequests?: ExchangeData[];
+  onAcceptRequest?: (exchangeId: string) => void;
+  onRejectRequest?: (exchangeId: string) => void;
   onCancelExchange: () => void;
   onGoLive: (preferences?: any) => void;
   onStopLive: () => void;
+  onCancelSentRequest?: (targetId: string) => void;
 }
 
 export const SeatRequestModule = ({
@@ -35,12 +36,13 @@ export const SeatRequestModule = ({
   activeExchange,
   exchangeHistory = [],
   sentRequests = [],
-  incomingRequest,
+  incomingRequests = [],
   onAcceptRequest,
   onRejectRequest,
   onCancelExchange,
   onGoLive,
-  onStopLive
+  onStopLive,
+  onCancelSentRequest
 }: Props) => {
   const [showPreferenceSelection, setShowPreferenceSelection] = useState(false);
   const [selectedSeatType, setSelectedSeatType] = useState('');
@@ -55,6 +57,8 @@ export const SeatRequestModule = ({
     p.coach === userCoach &&
     p.seatNo !== currentSeat
   );
+
+  const incomingRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -105,7 +109,7 @@ export const SeatRequestModule = ({
             </p>
           </div>
 
-          {status === 'idle' && !showPreferenceSelection && (
+          {status === 'idle' && !showPreferenceSelection && incomingRequests.length === 0 && (
             <button
               onClick={() => setShowPreferenceSelection(true)}
               className="bg-blue-900 text-white px-5 py-2.5 rounded-full text-[10px] font-black shadow-lg shadow-blue-900/20 flex items-center gap-2 hover:bg-blue-800 transition-all"
@@ -201,21 +205,46 @@ export const SeatRequestModule = ({
           </div>
         )}
 
-        {/* 1.5 INCOMING REQUEST BANNER (Restoring details non-blocking) */}
-        {incomingRequest && incomingRequest.requester && (
-          <div className="bg-blue-900/5 border-l-4 border-blue-900 p-4 rounded-r-xl mb-6 shadow-sm animate-in slide-in-from-top-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-[10px] font-black text-blue-900 uppercase tracking-widest mb-1">Incoming Request</h3>
-                <p className="text-xs font-bold text-slate-700">
-                  <span className="text-blue-700">{incomingRequest.requester.name}</span> wants to swap
-                </p>
-                <p className="text-[10px] text-slate-500 font-bold mt-0.5">
-                  Their Seat <span className="text-slate-900">{incomingRequest.requester.seatNo}</span> <span className="text-slate-400">➜</span> Your Seat <span className="text-slate-900">{currentSeat}</span>
-                </p>
-              </div>
+        {/* 1.5 INCOMING REQUESTS LIST (Multi-Request Support) - COMPACT */}
+        {incomingRequests.length > 0 && (
+          <div ref={incomingRef} className="space-y-3 mb-6 bg-blue-50/50 p-4 rounded-3xl border border-blue-100">
+            <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-widest pl-1">Incoming Requests</h3>
+            {incomingRequests.map((request) => (
+              <div key={request.exchangeId} className="bg-white p-3 rounded-2xl border-l-[4px] border-blue-500 shadow-sm flex items-center justify-between gap-3 animate-in slide-in-from-top-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">New</span>
+                    <h3 className="font-black text-slate-800 text-sm truncate leading-tight">
+                      {request.requester?.name || "Passenger"}
+                    </h3>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-bold leading-tight flex items-center gap-1">
+                    Looking for: <span className="text-blue-600 font-black uppercase">{request.requester?.preference || "Any Seat"}</span>
+                  </p>
+                  {request.requester?.reason && (
+                    <p className="text-[9px] text-slate-400 font-bold italic mt-0.5 border-l-2 border-slate-200 pl-1.5">
+                      "{request.requester.reason}"
+                    </p>
+                  )}
+                </div>
 
-            </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => onRejectRequest && onRejectRequest(request.exchangeId!)}
+                    className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                    title="Decline"
+                  >
+                    <XCircle size={16} />
+                  </button>
+                  <button
+                    onClick={() => onAcceptRequest && onAcceptRequest(request.exchangeId!)}
+                    className="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-[10px] uppercase tracking-wide hover:bg-blue-700 shadow-md shadow-blue-200 transition-all active:scale-95 flex items-center gap-1"
+                  >
+                    Accept
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -264,41 +293,33 @@ export const SeatRequestModule = ({
                         </div>
                       </div>
                     </div>
-                    {peer.socketId === incomingRequest?.requesterSocketId ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => onAcceptRequest && onAcceptRequest()}
-                          className="px-4 py-2 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all shadow-lg shadow-green-900/10 flex items-center gap-2 bg-green-600 text-white hover:bg-green-700 active:scale-95"
-                        >
-                          Accept <CheckCircle2 size={12} />
-                        </button>
-                        <button
-                          onClick={() => onRejectRequest && onRejectRequest()}
-                          className="px-4 py-2 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all shadow-lg shadow-red-900/10 flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 active:scale-95"
-                        >
-                          Reject <XCircle size={12} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          if (!sentRequests.includes(peer.socketId)) {
-                            onInitiateRequest(peer);
-                          }
-                        }}
-                        disabled={sentRequests.includes(peer.socketId)}
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all shadow-lg shadow-blue-900/10 flex items-center gap-2 ${sentRequests.includes(peer.socketId)
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+
+                    <button
+                      onClick={() => {
+                        const isIncoming = incomingRequests.some(req => req.requesterSocketId === peer.socketId);
+                        if (isIncoming) {
+                          incomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } else if (sentRequests.includes(peer.socketId)) {
+                          if (onCancelSentRequest) onCancelSentRequest(peer.socketId);
+                        } else {
+                          onInitiateRequest(peer);
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all shadow-lg shadow-blue-900/10 flex items-center gap-2 ${incomingRequests.some(req => req.requesterSocketId === peer.socketId)
+                        ? 'bg-green-600 text-white hover:bg-green-700 animate-pulse'
+                        : sentRequests.includes(peer.socketId)
+                          ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
                           : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
-                          }`}
-                      >
-                        {sentRequests.includes(peer.socketId) ? (
-                          <>Request Sent <CheckCircle2 size={12} /></>
-                        ) : (
-                          <>Exchange <Send size={12} /></>
-                        )}
-                      </button>
-                    )}
+                        }`}
+                    >
+                      {incomingRequests.some(req => req.requesterSocketId === peer.socketId) ? (
+                        <>See Incoming <ArrowUpCircle size={12} /></>
+                      ) : sentRequests.includes(peer.socketId) ? (
+                        <>Cancel <XCircle size={12} /></>
+                      ) : (
+                        <>Exchange <Send size={12} /></>
+                      )}
+                    </button>
                   </div>
                 ))}
               </div>

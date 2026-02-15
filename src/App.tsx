@@ -24,8 +24,9 @@ export default function App() {
   const [isLive, setIsLive] = useState(false);
 
   const [liveUsers, setLiveUsers] = useState<LiveUser[]>([]);
-  const [incomingRequest, setIncomingRequest] = useState<ExchangeData | null>(null);
+  const [incomingRequests, setIncomingRequests] = useState<ExchangeData[]>([]);
   const [activeExchange, setActiveExchange] = useState<ExchangeData | null>(null);
+  const [myPreferences, setMyPreferences] = useState<{ type: string; reason: string } | null>(null);
   const [exchangeHistory, setExchangeHistory] = useState<ExchangeData[]>([]);
   const [sentRequests, setSentRequests] = useState<string[]>([]);
 
@@ -89,6 +90,25 @@ export default function App() {
   }, [status, activeExchange, userDetails]);
 
 
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (session && session.PnrNumber) {
+        // Use fetch with keepalive which is more reliable than sendBeacon for JSON
+        fetch(`${API_URL}/api/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pnr: session.PnrNumber }),
+          keepalive: true
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -99,14 +119,32 @@ export default function App() {
 
     // Socket Event Listeners
     socket.on('update-live-users', (users) => {
-      // Filter out self
-      const others = users.filter((u: any) => u.socketId !== socket.id);
+      // Filter out self AND users in different coach
+      const others = users.filter((u: any) =>
+        u.socketId !== socket.id &&
+        (userDetails?.coach ? u.coach === userDetails.coach : true)
+      );
       setLiveUsers(others);
     });
 
     socket.on('exchange-request', (data) => {
       console.log("Incoming exchange request:", data);
-      setIncomingRequest(data);
+      setIncomingRequests(prev => {
+        // Prevent duplicates
+        if (prev.find(r => r.exchangeId === data.exchangeId)) return prev;
+        return [...prev, data];
+      });
+    });
+
+    socket.on('request-cancelled', ({ exchangeId, targetSocketId, requesterSocketId }) => {
+      console.log("Request cancelled:", exchangeId);
+      // Remove from incoming
+      setIncomingRequests(prev => prev.filter(r => r.exchangeId !== exchangeId));
+
+      // Remove from sent (if we were the requester and it was auto-cancelled)
+      if (requesterSocketId === socket.id && targetSocketId) {
+        setSentRequests(prev => prev.filter(id => id !== targetSocketId));
+      }
     });
 
     socket.on('exchange-accepted', (data) => {
@@ -118,24 +156,17 @@ export default function App() {
       socket.emit('stop-live');
 
       setStatus('approved');
-      setSentRequests([]); // Clear all pending requests
+      setSentRequests([]); // Clear all pending request markers on client side
+      setIncomingRequests([]); // Clear all incoming since we accepted one
 
       // Session update is handled by the useEffect dependent on activeExchange
-
-      // HACK: For visual update, we rely on the implementation below in `handleExchangeSuccess`
-      // or effectively just setStatus('approved') and let the UI show the new seat if we updated it.
-      // Let's refine the server payload handling in a separate effect or function if needed.
-      // For now, let's just trigger the 'approved' state which shows the ticket.
     });
 
-    socket.on('exchange-rejected', () => {
-      // alert("Exchange request was rejected.");
-      // Ideally we should know WHICH request was rejected to remove only that one.
-      // For now, if we get a rejection, we maybe shouldn't reset everything?
-      // Since backend broadcasts 'exchange-rejected' to requester generally.
-      // If we simply do nothing, the button stays 'Request Sent'.
-      // User might need a way to retry or we need exchangeId in rejection to clear specifically.
-      // status('idle') was old logic.
+    socket.on('exchange-rejected', ({ targetSocketId }) => {
+      // alert("Exchange request was rejected."); // Optional: remove alert if it's annoying
+      if (targetSocketId) {
+        setSentRequests(prev => prev.filter(id => id !== targetSocketId));
+      }
     });
 
     socket.on('exchange-cancelled', () => {
@@ -148,11 +179,12 @@ export default function App() {
     return () => {
       socket.off('update-live-users');
       socket.off('exchange-request');
+      socket.off('request-cancelled');
       socket.off('exchange-accepted');
       socket.off('exchange-rejected');
       socket.off('exchange-cancelled');
     };
-  }, [session]);
+  }, [session, isLive, userDetails]); // Added isLive dependency to ensure we have latest value when session connects
 
   const handleGoLive = (preferences?: any) => {
     if (!userDetails || !session) return;
@@ -168,6 +200,7 @@ export default function App() {
       bookingStatus: `${userDetails.coach}, ${userDetails.seatNo}, GN`,
       preferences // Pass preferences if backend supports it later
     });
+    setMyPreferences(preferences);
     setIsLive(true);
     setStatus('broadcasting');
   };
@@ -190,32 +223,39 @@ export default function App() {
       requesterDetails: {
         name: userDetails.name,
         seatNo: userDetails.seatNo,
-        targetSeat: targetPeer.seatNo
+        targetSeat: targetPeer.seatNo,
+        reason: myPreferences?.reason || "No Reason Provided",
+        preference: myPreferences?.type || "Any"
       }
     });
   };
 
-  const handleAcceptRequest = () => {
-    if (!incomingRequest) return;
+  const handleAcceptRequest = (exchangeId: string) => {
     socket.emit('respond-exchange', {
-      exchangeId: incomingRequest.exchangeId,
+      exchangeId,
       accepted: true
     });
-    setIncomingRequest(null);
+    // Optimistically remove
+    setIncomingRequests(prev => prev.filter(r => r.exchangeId !== exchangeId));
   };
 
-  const handleRejectRequest = () => {
-    if (!incomingRequest) return;
+  const handleRejectRequest = (exchangeId: string) => {
     socket.emit('respond-exchange', {
-      exchangeId: incomingRequest.exchangeId,
+      exchangeId,
       accepted: false
     });
-    setIncomingRequest(null);
+    // Remove from list
+    setIncomingRequests(prev => prev.filter(r => r.exchangeId !== exchangeId));
   };
 
   const handleCancelExchange = () => {
     if (!activeExchange) return;
     socket.emit('cancel-exchange', { exchangeId: activeExchange.exchangeId });
+  };
+
+  const handleCancelSentRequest = (targetSocketId: string) => {
+    socket.emit('cancel-exchange-request', { targetSocketId });
+    setSentRequests(prev => prev.filter(citations => citations !== targetSocketId));
   };
 
   // This executes when exchange is accepted to update local state
@@ -269,7 +309,70 @@ export default function App() {
     }, 0);
   };
 
-  if (!session) return <AuthModule onLogin={setSession} />;
+  // Restore session on mount
+  useEffect(() => {
+    const restoreState = async () => {
+      // 1. Session Restoration REMOVED to enforce strict single-session.
+
+      // 2. Restore Cart
+      const savedCart = localStorage.getItem('smartrail_cart');
+      if (savedCart) {
+        try {
+          setCart(JSON.parse(savedCart));
+        } catch (e) { console.error("Error loading cart", e); }
+      }
+
+      // 3. Restore History
+      const savedHistory = localStorage.getItem('smartrail_history');
+      if (savedHistory) {
+        try {
+          setExchangeHistory(JSON.parse(savedHistory));
+        } catch (e) { console.error("Error loading history", e); }
+      }
+    };
+
+    restoreState();
+  }, []);
+
+  // Persist Cart
+  useEffect(() => {
+    localStorage.setItem('smartrail_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  // Persist History
+  useEffect(() => {
+    localStorage.setItem('smartrail_history', JSON.stringify(exchangeHistory));
+  }, [exchangeHistory]);
+
+  // Re-emit GoLive if restored session isLive
+  useEffect(() => {
+    if (session && isLive && status === 'broadcasting' && userDetails) {
+      // We only re-emit if socket is connected? 
+      // Logic: if we just restored 'isLive=true', we need to tell backend "This new socket is the live user".
+      // The backend 'login' endpoint reset socketId to 'pending'.
+      // So we MUST emit 'go-live' again to reclaim the spot.
+      console.log("Re-emitting go-live for restored session...");
+      socket.emit('go-live', {
+        pnr: session.PnrNumber,
+        mobile: session.MobileNumber,
+        passengerName: userDetails.name,
+        coach: userDetails.coach,
+        seatNo: userDetails.seatNo,
+        class: userDetails.class,
+        trainNo: session.TrainNo,
+        trainName: session.TrainName,
+        bookingStatus: `${userDetails.coach}, ${userDetails.seatNo}, GN`,
+      });
+    }
+  }, [session, isLive, status, userDetails]); // Be careful with loops. status triggers this.
+
+
+  const handleLogin = (data: PnrRecord) => {
+    // Session persistence removed to enforce strict single-session
+    setSession(data);
+  };
+
+  if (!session) return <AuthModule onLogin={handleLogin} />;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32 font-sans overflow-x-hidden relative transition-opacity duration-500 opacity-100">
@@ -302,17 +405,27 @@ export default function App() {
             <button
               onClick={async () => {
                 if (session && session.PnrNumber) {
+                  console.log("Initiating UI Logout for:", session.PnrNumber);
                   try {
-                    // Non-blocking logout call (best effort)
-                    fetch(`${API_URL}/api/logout`, {
+                    // Await the logout to ensure it reaches backend
+                    await fetch(`${API_URL}/api/logout`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ pnr: session.PnrNumber })
-                    }).catch(err => console.error("Logout failed", err));
+                    });
+                    console.log("Backend logout successful");
                   } catch (e) {
                     console.error("Logout error", e);
                   }
+                } else {
+                  console.warn("No session PNR found during logout");
                 }
+
+                // Clear local state
+                localStorage.removeItem('smartrail_session');
+                localStorage.removeItem('smartrail_cart');
+                localStorage.removeItem('smartrail_history');
+
                 setSession(null);
                 setStatus('idle');
                 setCart({});
@@ -329,6 +442,7 @@ export default function App() {
         </div>
       </header>
 
+
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         {activeTab === 'seats' ? (
           <SeatRequestModule
@@ -338,7 +452,7 @@ export default function App() {
             userCoach={userDetails?.coach || ''}
             exchangeHistory={exchangeHistory}
             sentRequests={sentRequests}
-            incomingRequest={incomingRequest}
+            incomingRequests={incomingRequests}
 
             onInitiateRequest={handleInitiateRequest}
             onAcceptRequest={handleAcceptRequest}
@@ -351,6 +465,7 @@ export default function App() {
             onCancelExchange={handleCancelExchange}
             onGoLive={handleGoLive}
             onStopLive={handleStopLive}
+            onCancelSentRequest={handleCancelSentRequest}
           />
         ) : (
           <CateringModule

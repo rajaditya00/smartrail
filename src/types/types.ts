@@ -138,6 +138,7 @@ export interface PnrRecord {
   MobileNumber: string;
   ChartStatus: string;
   Passenger: Passengers[];
+  isLive?: boolean;
 }
 
 export interface LiveUser {
@@ -161,6 +162,8 @@ export interface ExchangeData {
     name: string;
     seatNo: number;
     targetSeat?: number;
+    reason?: string;
+    preference?: string;
   };
   expiresAt?: string;
   swappedSeat?: {

@@ -19,37 +19,83 @@ app.use(cors(corOptions));
 app.use(express.json());
 
 // API Routes
-app.post('/api/login', async (req, res) => {
+
+// Pre-Check User (Validate before OTP)
+app.post('/api/validate-user', async (req, res) => {
     try {
         const { pnr, mobile } = req.body;
-        const user = await User.findOne({ pnr, mobile });
-        if (!user) {
-            return res.status(404).json({ message: "Invalid PNR or Mobile Number" });
-        }
 
-        if (user.isLoggedIn) {
+        // Check if user exists and is logged in
+        const existingUser = await User.findOne({ pnr, mobile });
+
+        if (existingUser && existingUser.isLoggedIn) {
             return res.status(403).json({ message: "User already logged in on another device." });
         }
 
-        // Mark user as logged in
-        user.isLoggedIn = true;
-        user.lastActive = new Date();
-        await user.save();
+        // User not logged in (or doesn't exist yet), safe to proceed to OTP
+        res.status(200).json({ message: "User validated for OTP." });
+    } catch (err) {
+        console.error("Validation error:", err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
 
-        // Construct the PnrRecord-like object expected by frontend
-        // Note: The frontend expects a specific structure (PnrRecord). 
-        // We'll reconstruct it from our flat User model or send what's needed.
-        // The User model stores flattened data. 
-        // Let's return a structure compatible with the frontend 'PnrRecord' type roughly
-        // OR update frontend to accept this. 
-        // Easier to mock the PnrRecord structure here.
+app.post('/api/login', async (req, res) => {
+    try {
+        const { pnr, mobile, force, ...otherDetails } = req.body;
+
+        // Find existing user or create new one
+        // We use findOneAndUpdate with upsert to ensure we have a record
+        const query = { pnr, mobile };
+        let update = {
+            isLoggedIn: true, // Strict enforcement: Lock immediately.
+            lastActive: new Date()
+        };
+
+        // If other details provided (from mock DB on frontend), update them
+        if (otherDetails.passengerName) {
+            update = { ...update, ...otherDetails };
+        }
+
+        // 1. Check if user exists and is already logged in
+        const existingUser = await User.findOne({ pnr, mobile });
+
+        if (existingUser && existingUser.isLoggedIn && !force) {
+            return res.status(403).json({ message: "User already logged in on another device." });
+        }
+
+        let user;
+
+        // 2. Perform Update or Upsert
+        if (otherDetails.passengerName) {
+            // Full details provided -> Upsert (Create or Update)
+            update.socketId = "pending";
+
+            user = await User.findOneAndUpdate(
+                query,
+                update,
+                { new: true, upsert: true, setDefaultsOnInsert: true }
+            );
+        } else {
+            // No details provided -> Standard Login (Must exist)
+            if (!existingUser) {
+                return res.status(404).json({ message: "Invalid PNR or Mobile Number" });
+            }
+
+            // Update existing user
+            existingUser.isLoggedIn = true; // Strict enforcement: Lock immediately.
+            existingUser.lastActive = new Date();
+            existingUser.socketId = "pending"; // Reset socket binding
+            user = await existingUser.save();
+        }
 
         const pnrRecord = {
             PnrNumber: user.pnr,
             MobileNumber: user.mobile,
-            TrainNo: user.trainNo, // Include TrainNo
+            TrainNo: user.trainNo,
             TrainName: user.trainName,
             JourneyClass: user.class,
+            isLive: user.isLive, // Return persistence status
             Passenger: [{
                 PassengerName: user.passengerName,
                 SeatNo: user.seatNo,
@@ -185,6 +231,18 @@ io.on('connection', (socket) => {
         try {
             console.log(`Exchange requested from ${socket.id} to ${targetSocketId}`);
 
+            // Prevent duplicate requests
+            const existingExchange = await Exchange.findOne({
+                requesterSocketId: socket.id,
+                targetSocketId: targetSocketId,
+                status: 'pending'
+            });
+
+            if (existingExchange) {
+                console.log("Pending request already exists.");
+                return;
+            }
+
             // Fetch requester PNR from DB just in case we need it for record
             const requesterUser = await User.findOne({ socketId: socket.id });
 
@@ -220,6 +278,25 @@ io.on('connection', (socket) => {
         }
     });
 
+    // 3.5 Cancel Sent Request (Requester cancels before acceptance)
+    socket.on('cancel-sent-request', async ({ targetSocketId }) => {
+        try {
+            console.log(`Cancelling request from ${socket.id} to ${targetSocketId}`);
+            const exchange = await Exchange.findOneAndDelete({
+                requesterSocketId: socket.id,
+                targetSocketId: targetSocketId,
+                status: 'pending'
+            });
+
+            if (exchange) {
+                io.to(targetSocketId).emit('request-cancelled', { exchangeId: exchange._id });
+                console.log(`Request cancelled: ${exchange._id}`);
+            }
+        } catch (err) {
+            console.error("Error in cancel-sent-request:", err);
+        }
+    });
+
     // 4. Respond to Exchange (Accept/Reject)
     socket.on('respond-exchange', async ({ exchangeId, accepted }) => {
         try {
@@ -251,12 +328,37 @@ io.on('connection', (socket) => {
 
                     await requesterUser.save();
                     await targetUser.save();
-
-                    console.log(`Database updated: ${requesterUser.passengerName} (Seat ${requesterUser.seatNo}) <-> ${targetUser.passengerName} (Seat ${targetUser.seatNo})`);
                 }
-                // ---------------------------------------------------------------
 
-                // Notify both parties
+                // --- NEW: Auto-Cancel Conflicting Requests ---
+                // Find all other pending exchanges involving these users
+                const conflictingExchanges = await Exchange.find({
+                    $or: [
+                        { requesterSocketId: exchange.requesterSocketId },
+                        { targetSocketId: exchange.requesterSocketId },
+                        { requesterSocketId: exchange.targetSocketId },
+                        { targetSocketId: exchange.targetSocketId }
+                    ],
+                    status: 'pending',
+                    _id: { $ne: exchange._id } // Exclude the accepted one
+                });
+
+                for (const conflict of conflictingExchanges) {
+                    conflict.status = 'cancelled';
+                    await conflict.save();
+
+                    // Notify involved parties
+                    const cancelPayload = {
+                        exchangeId: conflict._id,
+                        targetSocketId: conflict.targetSocketId,
+                        requesterSocketId: conflict.requesterSocketId
+                    };
+                    io.to(conflict.requesterSocketId).emit('request-cancelled', cancelPayload);
+                    io.to(conflict.targetSocketId).emit('request-cancelled', cancelPayload);
+                    console.log(`Auto-cancelled conflicting request: ${conflict._id}`);
+                }
+
+                // Notify both parties of acceptance
                 const payload = {
                     exchangeId,
                     status: 'accepted',
@@ -278,13 +380,17 @@ io.on('connection', (socket) => {
                 // Broadcast updated live users list (since 2 users are no longer live)
                 broadcastLiveUsers();
 
-                console.log(`Exchange ${exchangeId} accepted. DB updated. Broadcast sent.`);
+                // Cleanup: Cancel other pending requests involving these users?
+                // Ideally yes, but for now simple flow.
 
             } else {
                 exchange.status = 'rejected';
                 await exchange.save();
 
-                io.to(exchange.requesterSocketId).emit('exchange-rejected', { exchangeId });
+                io.to(exchange.requesterSocketId).emit('exchange-rejected', {
+                    exchangeId,
+                    targetSocketId: exchange.targetSocketId
+                });
             }
         } catch (err) {
             console.error("Error in respond-exchange:", err);
@@ -314,6 +420,34 @@ io.on('connection', (socket) => {
         }
     });
 
+    // 6. Cancel Sent Request
+    socket.on('cancel-exchange-request', async ({ targetSocketId }) => {
+        try {
+            const exchange = await Exchange.findOne({
+                requesterSocketId: socket.id,
+                targetSocketId: targetSocketId,
+                status: 'pending'
+            });
+
+            if (exchange) {
+                exchange.status = 'cancelled';
+                await exchange.save();
+
+                const payload = {
+                    exchangeId: exchange._id,
+                    targetSocketId: targetSocketId,
+                    requesterSocketId: socket.id
+                };
+
+                io.to(targetSocketId).emit('request-cancelled', payload);
+                socket.emit('request-cancelled', payload); // Confirm to sender too
+                console.log(`Request cancelled by sender: ${exchange._id}`);
+            }
+        } catch (err) {
+            console.error("Error in cancel-exchange-request:", err);
+        }
+    });
+
     socket.on('disconnect', async () => {
         console.log('User disconnected:', socket.id);
         try {
@@ -321,6 +455,23 @@ io.on('connection', (socket) => {
                 isLive: false,
                 isLoggedIn: false // Mark session as ended
             });
+
+            // --- NEW: Auto-Cancel Pending Requests on Disconnect ---
+            const pendingExchanges = await Exchange.find({
+                $or: [{ requesterSocketId: socket.id }, { targetSocketId: socket.id }],
+                status: 'pending'
+            });
+
+            for (const ex of pendingExchanges) {
+                ex.status = 'cancelled';
+                await ex.save();
+
+                // Notify the OTHER party
+                const otherSocketId = ex.requesterSocketId === socket.id ? ex.targetSocketId : ex.requesterSocketId;
+                io.to(otherSocketId).emit('request-cancelled', { exchangeId: ex._id });
+                console.log(`Auto-cancelled pending request due to disconnect: ${ex._id}`);
+            }
+
             broadcastLiveUsers();
         } catch (err) {
             console.error("Error disconnecting user:", err);

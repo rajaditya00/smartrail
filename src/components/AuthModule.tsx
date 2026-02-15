@@ -20,10 +20,38 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
     const pnrInput = formData.pnr.trim();
     const mobileInput = formData.mobile.trim();
 
+    // 1. Look up details from Local Mock Data (Source of Truth)
+    console.log("Checking local MOCK_PNR_DATABASE...");
+    let userPayload: any = { pnr: pnrInput, mobile: mobileInput };
+
+    const record = Object.values(MOCK_PNR_DATABASE).find(
+      (r) => r.PnrNumber === pnrInput && r.MobileNumber === mobileInput
+    );
+
+    if (record) {
+      console.log("User found in local mock data. Preparing full payload...");
+      if (record.Passenger && record.Passenger.length > 0) {
+        const p = record.Passenger[0];
+        userPayload = {
+          ...userPayload,
+          passengerName: p.PassengerName,
+          coach: p.Coach,
+          seatNo: p.SeatNo,
+          bookingStatus: p.BookingStatus,
+          trainNo: record.TrainNo,
+          trainName: record.TrainName,
+          class: record.JourneyClass
+        };
+      }
+    } else {
+      console.warn("User not found in local mock. Attempting login with PNR/Mobile only...");
+    }
+
     try {
-      // 1. Try Backend First
-      console.log("Attempting backend login...");
-      const response = await fetch(`${API_URL}/api/login`, {
+      // 2. Send details to Backend (Validate Only - No Login Yet)
+      console.log("Validating user with backend:", userPayload);
+      // We check if user is ALREADY logged in, but we don't log them in yet.
+      const response = await fetch(`${API_URL}/api/validate-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -33,56 +61,62 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Backend login successful:", data);
-        setMatchedUser(data); // Backend should return PnrRecord structure
+        console.log("User validated for OTP:", data);
+
+        // Store payload for actual login after OTP
+        setMatchedUser(userPayload);
         setStep('otp');
-        return; // Exit early if backend succeeds
       } else if (response.status === 403) {
-        // Session active - Block login
+        // Strict single session: Show error.
         const errData = await response.json();
-        throw new Error(errData.message || "User already logged in.");
+        throw new Error(errData.message || "User already logged in on another device/tab.");
       } else {
-        console.warn("Backend login failed or user not found. Falling back to local data.");
+        const errData = await response.json();
+        throw new Error(errData.message || "Validation failed.");
       }
     } catch (apiErr: any) {
-      console.error("Backend API error:", apiErr);
-      if (apiErr.message === "User already logged in." || apiErr.message?.includes("logged in")) {
-        setError(apiErr.message);
-        setLoading(false);
-        return; // STOP fallback
-      }
-      // Fallback proceeds below for other errors (like 404 or network)
-    }
-
-    // 2. Fallback to Local Data
-    // Simulate network delay for local check
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    try {
-      console.log("Checking local MOCK_PNR_DATABASE...");
-      const record = Object.values(MOCK_PNR_DATABASE).find(
-        (r) => r.PnrNumber === pnrInput && r.MobileNumber === mobileInput
-      );
-
-      if (!record) {
-        throw new Error('PNR not found or mobile mismatch.');
-      }
-
-      setMatchedUser(record);
-      setStep('otp');
-    } catch (err: any) {
-      setError(err.message || "Login failed. Check PNR/Mobile details.");
+      console.error("Login Error:", apiErr);
+      setError(apiErr.message || "Login failed. Please check your details.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setLoading(true);
+
     if (formData.otp === '1234') {
-      if (matchedUser) onLogin(matchedUser);
+      try {
+        if (!matchedUser) throw new Error("Session payload missing.");
+
+        // NOW we perform the actual login (Upsert & Lock Session)
+        console.log("OTP Verified. Logging in...", matchedUser);
+
+        const response = await fetch(`${API_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(matchedUser)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Final Login Successful:", data);
+          onLogin(data);
+        } else {
+          const errData = await response.json();
+          throw new Error(errData.message || "Login failed during final step.");
+        }
+      } catch (err: any) {
+        console.error("Final Login Error:", err);
+        setError(err.message || "Login failed.");
+      } finally {
+        setLoading(false);
+      }
     } else {
       setError("Incorrect Code. Use '1234'");
+      setLoading(false);
     }
   };
 
