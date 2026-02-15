@@ -354,7 +354,7 @@ export const SeatRequestModule = ({
                     <Radio size={28} className="text-blue-600 animate-pulse" />
                   </div>
                 </div>
-                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Scanning Coach {displayCoach}</h3>
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Scanning {userClass} Coaches</h3>
                 <p className="text-[10px] text-slate-400 font-bold mt-2 animate-pulse">Waiting for peers...</p>
                 {!isLive && <p className="text-[9px] text-red-400 mt-2 font-bold">(You are not live)</p>}
               </div>
