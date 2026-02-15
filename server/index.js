@@ -448,12 +448,13 @@ io.on('connection', (socket) => {
         }
     });
 
+
     socket.on('disconnect', async () => {
         console.log('User disconnected:', socket.id);
         try {
             await User.findOneAndUpdate({ socketId: socket.id }, {
                 isLive: false,
-                isLoggedIn: false // Mark session as ended
+                isLoggedIn: false // Mark session as endedd
             });
 
             // --- NEW: Auto-Cancel Pending Requests on Disconnect ---
