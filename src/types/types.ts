@@ -164,6 +164,7 @@ export interface ExchangeData {
     targetSeat?: number;
     reason?: string;
     preference?: string;
+    coach?: string;
   };
   expiresAt?: string;
   swappedSeat?: {

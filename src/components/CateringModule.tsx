@@ -28,11 +28,10 @@ export const CateringModule: React.FC<CateringModuleProps> = ({ menu, cart, onUp
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
-              activeCategory === cat 
-                ? 'bg-blue-900 text-white shadow-lg' 
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${activeCategory === cat
+                ? 'bg-blue-900 text-white shadow-lg'
                 : 'text-slate-400 hover:bg-slate-50'
-            }`}
+              }`}
           >
             {cat}s
           </button>
@@ -44,8 +43,8 @@ export const CateringModule: React.FC<CateringModuleProps> = ({ menu, cart, onUp
         {menu.filter(i => i.type === activeCategory).map(item => (
           <div key={item.id} className="bg-white p-5 border border-slate-100 flex items-center justify-between shadow-sm rounded-3xl hover:border-blue-100 transition-colors">
             <div className="flex gap-4 items-center">
-              <div 
-                className={`w-3 h-3 rounded-full border-2 border-white shadow-sm ${item.category === 'Veg' ? 'bg-green-500' : 'bg-red-500'}`} 
+              <div
+                className={`w-3 h-3 rounded-full border-2 border-white shadow-sm ${item.category === 'Veg' ? 'bg-green-500' : 'bg-red-500'}`}
                 title={item.category}
               />
               <div>
@@ -55,12 +54,12 @@ export const CateringModule: React.FC<CateringModuleProps> = ({ menu, cart, onUp
             </div>
 
             <div className="flex items-center gap-3 bg-slate-100 rounded-2xl p-1.5">
-              <button 
+              <button
                 onClick={() => onUpdateCart(item.id, -1)}
                 className="w-8 h-8 flex items-center justify-center rounded-xl font-bold text-slate-500 hover:bg-white active:scale-90 transition-all"
               >-</button>
               <span className="font-black text-slate-700 text-center w-4 text-xs">{cart[item.id] || 0}</span>
-              <button 
+              <button
                 onClick={() => onUpdateCart(item.id, 1)}
                 className="w-8 h-8 flex items-center justify-center rounded-xl font-bold text-slate-500 hover:bg-white active:scale-90 transition-all"
               >+</button>
@@ -76,17 +75,17 @@ export const CateringModule: React.FC<CateringModuleProps> = ({ menu, cart, onUp
             <div className="bg-white rounded-t-[2.5rem] p-6 shadow-2xl border-x border-t border-slate-200 animate-in slide-in-from-bottom-20">
               <div className="flex justify-between items-center mb-4 border-b pb-4">
                 <div className="flex items-center gap-2 text-blue-900">
-                    <Utensils size={16} strokeWidth={3} />
-                    <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-widest">Order Summary</h3>
+                  <Utensils size={16} strokeWidth={3} />
+                  <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-widest">Order Summary</h3>
                 </div>
-                <button 
-                  onClick={() => setIsSummaryOpen(false)} 
+                <button
+                  onClick={() => setIsSummaryOpen(false)}
                   className="text-slate-400 p-1 hover:bg-slate-100 rounded-full"
                 >
-                  <X size={18}/>
+                  <X size={18} />
                 </button>
               </div>
-              
+
               <div className="space-y-4 mb-6 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
                 {cartItems.map(item => (
                   <div key={item.id} className="flex justify-between items-center">
@@ -100,17 +99,17 @@ export const CateringModule: React.FC<CateringModuleProps> = ({ menu, cart, onUp
               </div>
             </div>
           )}
-          
+
           <div className={`bg-slate-900 text-white p-5 flex justify-between items-center shadow-2xl border border-white/10 ${isSummaryOpen ? 'rounded-b-[2.5rem]' : 'rounded-[2.5rem]'}`}>
             <button onClick={() => setIsSummaryOpen(!isSummaryOpen)} className="text-left group">
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 group-hover:text-blue-400 transition-colors">
-                {isSummaryOpen ? 'Hide Summary' : 'View Summary'} 
-                <ChevronRight size={10} className={`transition-transform duration-300 ${isSummaryOpen ? '-rotate-90' : 'rotate-0'}`}/>
+                {isSummaryOpen ? 'Hide Summary' : 'View Summary'}
+                <ChevronRight size={10} className={`transition-transform duration-300 ${isSummaryOpen ? '-rotate-90' : 'rotate-0'}`} />
               </p>
               <p className="text-xl font-black text-orange-400">₹{totalBill}</p>
             </button>
-            
-            <button 
+
+            <button
               onClick={onPay}
               className="bg-orange-500 text-slate-900 px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-orange-400 active:scale-95 transition-all shadow-lg shadow-orange-500/20"
             >

@@ -16,49 +16,49 @@ export const SupportModule = ({ pnr, userMobile, userName }: SupportModuleProps)
       id: 'occupancy',
       label: 'Seat Occupied',
       icon: <UserMinus className="text-purple-600" />,
-      desc: 'unauthorized occupancy',
-      smsNumber: '9717630982',
-      format: (pnr: string, msg: string) => `[SmartRail] PNR: ${pnr} | Name: ${userName || 'N/A'} | Mob: ${userMobile || 'N/A'} | Issue: Occupancy | Msg: ${msg}`
+      desc: 'Unauthorized Occupancy',
+      smsNumber: '139',
+      format: (pnr: string, msg: string) => `PNR: ${pnr} NAME: ${userName || 'N/A'} MOB: ${userMobile || 'N/A'} COMPLAINT: UNAUTHORISED OCCUPANCY ${msg ? '- ' + msg : ''}`.trim()
     },
     {
       id: 'catering',
       label: 'Food/Catering',
       icon: <Utensils className="text-rose-500" />,
       desc: 'Quality/Overcharging',
-      smsNumber: '138',
-      format: (pnr: string, msg: string) => `[SmartRail] PNR: ${pnr} | Name: ${userName || 'N/A'} | Mob: ${userMobile || 'N/A'} | Issue: Catering | Msg: ${msg}`
+      smsNumber: '139',
+      format: (pnr: string, msg: string) => `PNR: ${pnr} NAME: ${userName || 'N/A'} MOB: ${userMobile || 'N/A'} COMPLAINT: CATERING ${msg ? '- ' + msg : ''}`.trim()
     },
     {
       id: 'cleaning',
       label: 'Cleaning',
       icon: <Droplets className="text-blue-500" />,
-      desc: 'Toilet/Coach cleaning',
-      smsNumber: '58888',
-      format: (pnr: string, msg: string) => `CLEAN ${pnr} ${msg}`
+      desc: 'Toilet/Coach Cleaning',
+      smsNumber: '139',
+      format: (pnr: string, msg: string) => `PNR: ${pnr} NAME: ${userName || 'N/A'} MOB: ${userMobile || 'N/A'} COMPLAINT: CLEANLINESS ${msg ? '- ' + msg : ''}`.trim()
     },
     {
       id: 'medical',
       label: 'Medical',
       icon: <AlertTriangle className="text-red-500" />,
-      desc: 'Emergency medical aid',
-      smsNumber: '138',
-      format: (pnr: string, msg: string) => `[SmartRail] PNR: ${pnr} | Name: ${userName || 'N/A'} | Mob: ${userMobile || 'N/A'} | Issue: Medical | Msg: ${msg}`
+      desc: 'Emergency Medical Aid',
+      smsNumber: '139',
+      format: (pnr: string, msg: string) => `PNR: ${pnr} NAME: ${userName || 'N/A'} MOB: ${userMobile || 'N/A'} COMPLAINT: MEDICAL EMERGENCY ${msg ? '- ' + msg : ''}`.trim()
     },
     {
       id: 'security',
       label: 'Security',
       icon: <ShieldAlert className="text-orange-500" />,
-      desc: 'RPF assistance',
-      smsNumber: '182',
-      format: (pnr: string, msg: string) => `[SmartRail] PNR: ${pnr} | Name: ${userName || 'N/A'} | Mob: ${userMobile || 'N/A'} | Issue: Security | Msg: ${msg}`
+      desc: 'RPF/GRP Assistance',
+      smsNumber: '139',
+      format: (pnr: string, msg: string) => `PNR: ${pnr} NAME: ${userName || 'N/A'} MOB: ${userMobile || 'N/A'} COMPLAINT: SECURITY ${msg ? '- ' + msg : ''}`.trim()
     },
     {
       id: 'electrical',
       label: 'Electrical',
       icon: <Zap className="text-amber-500" />,
-      desc: 'Charging point issues',
-      smsNumber: '9717630982',
-      format: (pnr: string, msg: string) => `[SmartRail] PNR: ${pnr} | Name: ${userName || 'N/A'} | Mob: ${userMobile || 'N/A'} | Issue: Electrical | Msg: ${msg}`
+      desc: 'Charging/AC Issues',
+      smsNumber: '139',
+      format: (pnr: string, msg: string) => `PNR: ${pnr} NAME: ${userName || 'N/A'} MOB: ${userMobile || 'N/A'} COMPLAINT: ELECTRICAL ${msg ? '- ' + msg : ''}`.trim()
     },
   ];
 

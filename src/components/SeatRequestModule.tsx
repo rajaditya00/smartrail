@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Radio, XCircle, ChevronRight, CheckCircle2, Info, Send, Timer, Train, ArrowUpCircle, Download } from 'lucide-react';
 import { CoachVisuals } from './CoachVisuals';
+import { CoachSelector } from './CoachSelector';
 import type { RequestStatus, LiveUser, ExchangeData } from '../types/types';
 import { generateTicketPdf } from '../utils/generateTicketPdf';
 
@@ -54,6 +55,22 @@ export const SeatRequestModule = ({
   const [selectedSeatType, setSelectedSeatType] = useState('');
   const [selectedReason, setSelectedReason] = useState('');
   const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [highlightedSeatFocus, setHighlightedSeatFocus] = useState<number | null>(null);
+  const [highlightIncoming, setHighlightIncoming] = useState(false);
+
+  // Coach Selection State
+
+  // Example hardcoded coaches based on Train Class (3A usually has B1-B8 etc.)
+  // In a real app, this might come from the backend session details.
+  const getCoachesForClass = (trainClass: string) => {
+    if (trainClass.includes('3A')) return ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8'];
+    if (trainClass.includes('2A')) return ['A1', 'A2', 'A3', 'A4'];
+    if (trainClass.includes('1A')) return ['H1'];
+    if (trainClass.includes('SL')) return ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10'];
+    return [userCoach]; // Fallback to just their coach if unknown
+  };
+
+  const availableCoaches = getCoachesForClass(userClass);
 
   const seatTypes = ['Lower', 'Middle', 'Upper', 'Side Lower', 'Side Upper', 'Any'];
   const reasons = ['Traveling with Elderly', 'Medical Condition', 'Family Seating', 'Personal Comfort', 'Other'];
@@ -69,8 +86,6 @@ export const SeatRequestModule = ({
   // Determine Display Coach (Switch to new coach if approved)
   let displayCoach = userCoach;
   if (status === 'approved' && activeExchange) {
-    // If I am Requester (my new seat is requesterNewSeat), I moved to Target's Coach (endCoach)
-    // If I am Target (my new seat is targetNewSeat), I moved to Requester's Coach (startCoach)
     if (activeExchange.swappedSeat?.requesterNewSeat === currentSeat) {
       displayCoach = activeExchange.endCoach || userCoach;
     } else {
@@ -78,7 +93,16 @@ export const SeatRequestModule = ({
     }
   }
 
-  const sameCoachPeers = relevantPeers.filter(p => p.coach === displayCoach);
+  // We map the user's manual coach selection to this state, but default to the display coach
+  const [selectedCoach, setSelectedCoach] = useState<string>(displayCoach);
+
+  // If the display coach changes (e.g. swap approved), update the selected coach immediately
+  if (selectedCoach !== displayCoach && status === 'approved') {
+    setSelectedCoach(displayCoach);
+  }
+
+  // Peers visible in the currently selected coach map
+  const viewedCoachPeers = relevantPeers.filter(p => p.coach === selectedCoach);
 
   const incomingRef = useRef<HTMLDivElement>(null);
 
@@ -126,14 +150,52 @@ export const SeatRequestModule = ({
 
   return (
     <div className="space-y-6">
-      <CoachVisuals
-        status={status}
-        currentSeat={currentSeat}
-        otherBroadcasters={sameCoachPeers.map(p => p.seatNo)}
-        coachName={`Coach ${displayCoach}`}
-      />
+      <div className="relative flex flex-col">
+        {/* Horizontal Coach Tabs */}
+        {status !== 'approved' && (
+          <CoachSelector
+            coaches={availableCoaches}
+            activeCoach={selectedCoach}
+            onSelectCoach={setSelectedCoach}
+            livePeers={relevantPeers}
+            userCoach={userCoach}
+            incomingRequests={incomingRequests}
+            onIncomingClick={() => {
+              setHighlightIncoming(true);
+              incomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setTimeout(() => setHighlightIncoming(false), 3000);
+            }}
+          />
+        )}
 
-      <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200">
+        {/* Pass down selectedCoach rather than displayCoach to map */}
+        <CoachVisuals
+          status={status}
+          currentSeat={selectedCoach === userCoach ? currentSeat : -1} // Only show the "User" icon if looking at their own coach
+          otherBroadcasters={viewedCoachPeers.map(p => p.seatNo)}
+          incomingSeats={incomingRequests
+            .filter((req: ExchangeData) => (req.startCoach || req.requester?.coach || userCoach) === selectedCoach)
+            .map(req => req.requester?.seatNo)
+            .filter((s): s is number => s !== undefined)
+          }
+          coachName={`Coach ${selectedCoach}`}
+          onLiveSeatClick={(seatNo: number) => {
+            setHighlightedSeatFocus(seatNo);
+            const isIncomingReq = incomingRequests.some((req: ExchangeData) =>
+              req.requester?.seatNo === seatNo &&
+              (req.startCoach || req.requester?.coach || userCoach) === selectedCoach
+            );
+            if (isIncomingReq && incomingRef.current) {
+              incomingRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+              document.getElementById('exchange-hub')?.scrollIntoView({ behavior: 'smooth' });
+            }
+            setTimeout(() => setHighlightedSeatFocus(null), 3000);
+          }}
+        />
+      </div>
+
+      <div id="exchange-hub" className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-lg font-black text-slate-800">Smart Exchange Hub</h2>
@@ -216,52 +278,57 @@ export const SeatRequestModule = ({
         {incomingRequests.length > 0 && (
           <div ref={incomingRef} className="space-y-3 mb-6 bg-blue-50/50 p-4 rounded-3xl border border-blue-100">
             <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-widest pl-1">Incoming Requests</h3>
-            {incomingRequests.map((request) => (
-              <div key={request.exchangeId} className="bg-white p-3 rounded-2xl border-l-[4px] border-blue-500 shadow-sm flex items-center justify-between gap-3 animate-in slide-in-from-top-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">New</span>
-                    {request.startCoach && request.startCoach !== userCoach && (
-                      <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">
-                        Coach {request.startCoach}
-                      </span>
-                    )}
-                    <h3 className="font-black text-slate-800 text-sm truncate leading-tight">
-                      {request.requester?.name || "Passenger"}
-                    </h3>
-                  </div>
-                  <p className="text-[10px] text-slate-500 font-bold leading-tight flex flex-wrap items-center gap-1.5">
-                    Looking for: <span className="text-blue-600 font-black uppercase">{request.requester?.preference || "Any Seat"}</span>
-                    {/* Show Coach if different */}
-                    {request.startCoach && request.startCoach !== userCoach && (
-                      <span className="text-orange-500 font-black ml-1">(Coach {userCoach})</span>
-                    )}
-                    {/* Show Reason Badge Prominently */}
-                    {request.requester?.reason && (
-                      <span className="text-slate-500 normal-case italic pl-2.5 border-l-2 border-slate-200">
-                        {request.requester.reason}
-                      </span>
-                    )}
-                  </p>
-                </div>
+            {incomingRequests.map((request: ExchangeData) => {
+              const reqCoach = request.startCoach || request.requester?.coach || userCoach;
+              const isSpecificHighlight = highlightedSeatFocus === request.requester?.seatNo && reqCoach === selectedCoach;
+              const shouldHighlight = highlightIncoming || isSpecificHighlight;
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => onRejectRequest && onRejectRequest(request.exchangeId!)}
-                    className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
-                    title="Decline"
-                  >
-                    <XCircle size={16} />
-                  </button>
-                  <button
-                    onClick={() => onAcceptRequest && onAcceptRequest(request.exchangeId!)}
-                    className="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-[10px] uppercase tracking-wide hover:bg-blue-700 shadow-md shadow-blue-200 transition-all active:scale-95 flex items-center gap-1"
-                  >
-                    Accept
-                  </button>
+              return (
+                <div key={request.exchangeId} className={`bg-white p-3 rounded-2xl border-l-[4px] shadow-sm flex items-center justify-between gap-3 animate-in slide-in-from-top-2 transition-all duration-300 ${shouldHighlight ? 'border-orange-500 ring-4 ring-orange-400/20 scale-[1.02]' : 'border-blue-500'
+                  }`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide">New</span>
+                      <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide flex items-center gap-1">
+                        {request.startCoach && request.startCoach !== userCoach ? `Coach ${request.startCoach} • ` : ''}Seat {request.requester?.seatNo}
+                      </span>
+                      <h3 className="font-black text-slate-800 text-sm truncate leading-tight">
+                        {request.requester?.name || "Passenger"}
+                      </h3>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-bold leading-tight flex flex-wrap items-center gap-1.5">
+                      Looking for: <span className="text-blue-600 font-black uppercase">{request.requester?.preference || "Any Seat"}</span>
+                      {/* Show Coach if different */}
+                      {request.startCoach && request.startCoach !== userCoach && (
+                        <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide flex items-center gap-1">(Coach {userCoach})</span>
+                      )}
+                      {/* Show Reason Badge Prominently */}
+                      {request.requester?.reason && (
+                        <span className="text-slate-500 normal-case italic pl-2.5 border-l-2 border-slate-200">
+                          {request.requester.reason}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => onRejectRequest && onRejectRequest(request.exchangeId!)}
+                      className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                      title="Decline"
+                    >
+                      <XCircle size={16} />
+                    </button>
+                    <button
+                      onClick={() => onAcceptRequest && onAcceptRequest(request.exchangeId!)}
+                      className="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-[10px] uppercase tracking-wide hover:bg-blue-700 shadow-md shadow-blue-200 transition-all active:scale-95 flex items-center gap-1"
+                    >
+                      Accept
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -287,78 +354,109 @@ export const SeatRequestModule = ({
               </button>
             </div>
 
-            {relevantPeers.length > 0 ? (
-              <div className="space-y-3">
-                {relevantPeers.map((peer, idx) => (
-                  <div key={peer.socketId || idx} className="group flex items-center justify-between p-4 bg-white rounded-2xl border-2 border-slate-100 hover:border-blue-500/50 hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-black text-xs border border-blue-100">
-                        {peer.seatNo}
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-slate-800">{peer.passengerName}</p>
-                        {peer.coach !== userCoach && (
-                          <p className="text-[9px] text-orange-600 font-bold uppercase tracking-tight">
-                            Coach {peer.coach}
-                          </p>
-                        )}
-                        <div className="text-[10px] text-blue-600 font-bold uppercase flex flex-col items-start gap-1 mt-1">
-                          <div className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                            <span>Looking for: <span className="text-blue-800 font-black">{peer.preferences?.type || "Any Seat"}</span></span>
-                          </div>
-                          {peer.preferences?.reason && (
-                            <span className="text-slate-500 normal-case italic pl-2.5 border-l-2 border-slate-200">
-                              "{peer.preferences.reason}"
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+            {(() => {
+              const filteredPeers = relevantPeers.filter(peer => !incomingRequests.some(req => req.requesterSocketId === peer.socketId));
 
+              if (filteredPeers.length > 0) {
+                return (
+                  <div className="space-y-3 mb-6 bg-blue-50/50 p-4 rounded-3xl border border-blue-100">
+                    <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-widest pl-1 mb-2">Live Exchanges</h3>
+                    {filteredPeers.map((peer, idx) => {
+                      const isHighlighted = peer.seatNo === highlightedSeatFocus && peer.coach === selectedCoach;
+                      return (
+                        <div key={peer.socketId || idx} className={`group flex items-center justify-between p-4 bg-white rounded-2xl border-2 transition-all duration-300 ${isHighlighted
+                          ? 'border-orange-400 ring-4 ring-orange-400/20 shadow-lg scale-[1.02]'
+                          : 'border-slate-100 hover:border-blue-500/50 hover:shadow-md'
+                          }`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs border ${isHighlighted ? 'bg-orange-100 text-orange-600 border-orange-200' : 'bg-blue-50 text-blue-600 border-blue-100'
+                              }`}>
+                              {peer.seatNo}
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-slate-800">{peer.passengerName}</p>
+                              {peer.coach !== userCoach && (
+                                <p className="text-[9px] text-orange-600 font-bold uppercase tracking-tight">
+                                  Coach {peer.coach}
+                                </p>
+                              )}
+                              <div className="text-[10px] text-blue-600 font-bold uppercase flex flex-col items-start gap-1 mt-1">
+                                <div className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                  <span>Looking for: <span className="text-blue-800 font-black">{peer.preferences?.type || "Any Seat"}</span></span>
+                                </div>
+                                {peer.preferences?.reason && (
+                                  <span className="text-slate-500 normal-case italic pl-2.5 border-l-2 border-slate-200">
+                                    "{peer.preferences.reason}"
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              if (sentRequests.includes(peer.socketId)) {
+                                if (onCancelSentRequest) onCancelSentRequest(peer.socketId);
+                              } else {
+                                onInitiateRequest(peer);
+                              }
+                            }}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all shadow-lg shadow-blue-900/10 flex items-center gap-2 ${sentRequests.includes(peer.socketId)
+                              ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
+                              : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+                              }`}
+                          >
+                            {sentRequests.includes(peer.socketId) ? (
+                              <>Cancel <XCircle size={12} /></>
+                            ) : (
+                              <>Exchange <Send size={12} /></>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
+
+              if (incomingRequests.length > 0) {
+                return (
+                  <div className="py-10 text-center flex flex-col items-center justify-center bg-orange-50/50 rounded-[2rem] border-2 border-dashed border-orange-200">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-orange-100">
+                      <ArrowUpCircle size={24} className="text-orange-500 animate-bounce" />
+                    </div>
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest leading-tight">All Peers Waiting Above</h3>
+                    <p className="text-[10px] text-slate-500 font-bold mt-1 mb-4 w-3/4">The users actively broadcasting have already sent you exchange requests.</p>
                     <button
                       onClick={() => {
-                        const isIncoming = incomingRequests.some(req => req.requesterSocketId === peer.socketId);
-                        if (isIncoming) {
-                          incomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        } else if (sentRequests.includes(peer.socketId)) {
-                          if (onCancelSentRequest) onCancelSentRequest(peer.socketId);
-                        } else {
-                          onInitiateRequest(peer);
-                        }
+                        setHighlightIncoming(true);
+                        incomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(() => setHighlightIncoming(false), 3000);
                       }}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all shadow-lg shadow-blue-900/10 flex items-center gap-2 ${incomingRequests.some(req => req.requesterSocketId === peer.socketId)
-                        ? 'bg-green-600 text-white hover:bg-green-700 animate-pulse'
-                        : sentRequests.includes(peer.socketId)
-                          ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
-                          : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
-                        }`}
+                      className="px-6 py-2.5 bg-orange-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/30 hover:bg-orange-600 transition-all active:scale-95 flex items-center gap-2"
                     >
-                      {incomingRequests.some(req => req.requesterSocketId === peer.socketId) ? (
-                        <>See Incoming <ArrowUpCircle size={12} /></>
-                      ) : sentRequests.includes(peer.socketId) ? (
-                        <>Cancel <XCircle size={12} /></>
-                      ) : (
-                        <>Exchange <Send size={12} /></>
-                      )}
+                      See Incoming Requests
                     </button>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-16 text-center flex flex-col items-center justify-center bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-200">
-                <div className="relative mb-6">
-                  <div className="w-24 h-24 border-2 border-blue-500/20 rounded-full animate-[ping_3s_linear_infinite]" />
-                  <div className="w-24 h-24 border-2 border-blue-400/40 rounded-full animate-[ping_2s_linear_infinite] absolute top-0" />
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white rounded-full shadow-xl flex items-center justify-center border-2 border-blue-100">
-                    <Radio size={28} className="text-blue-600 animate-pulse" />
+                );
+              }
+
+              return (
+                <div className="py-16 text-center flex flex-col items-center justify-center bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-200">
+                  <div className="relative mb-6">
+                    <div className="w-24 h-24 border-2 border-blue-500/20 rounded-full animate-[ping_3s_linear_infinite]" />
+                    <div className="w-24 h-24 border-2 border-blue-400/40 rounded-full animate-[ping_2s_linear_infinite] absolute top-0" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white rounded-full shadow-xl flex items-center justify-center border-2 border-blue-100">
+                      <Radio size={28} className="text-blue-600 animate-pulse" />
+                    </div>
                   </div>
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Scanning {userClass} Coaches</h3>
+                  <p className="text-[10px] text-slate-400 font-bold mt-2 animate-pulse">Waiting for peers...</p>
+                  {!isLive && <p className="text-[9px] text-red-400 mt-2 font-bold">(You are not live)</p>}
                 </div>
-                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Scanning {userClass} Coaches</h3>
-                <p className="text-[10px] text-slate-400 font-bold mt-2 animate-pulse">Waiting for peers...</p>
-                {!isLive && <p className="text-[9px] text-red-400 mt-2 font-bold">(You are not live)</p>}
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 

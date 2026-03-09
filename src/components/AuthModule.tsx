@@ -19,7 +19,7 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
 
     const pnrInput = formData.pnr.trim();
     const mobileInput = formData.mobile.trim();
-    let finalUserPayload: any = null;
+    let finalUserPayload: PnrRecord | null = null;
 
     try {
       // 1. Check Server (MongoDB) First
@@ -49,7 +49,7 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
           trainNo: data.data.TrainNo,
           trainName: data.data.TrainName,
           class: data.data.JourneyClass
-        };
+        } as unknown as PnrRecord;
       } else {
         // 2. Fallback to Local Mock Data
         console.warn("User not found in Server. Checking Local Mock Data...");
@@ -70,7 +70,7 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
             trainNo: record.TrainNo,
             trainName: record.TrainName,
             class: record.JourneyClass
-          };
+          } as unknown as PnrRecord;
         }
       }
 
@@ -81,9 +81,9 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
         throw new Error("Invalid PNR or Mobile Number. Please check details.");
       }
 
-    } catch (apiErr: any) {
+    } catch (apiErr: unknown) {
       console.error("Login Error:", apiErr);
-      setError(apiErr.message || "Login failed.");
+      setError(apiErr instanceof Error ? apiErr.message : "Login failed.");
     } finally {
       setLoading(false);
     }
@@ -115,9 +115,9 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
           const errData = await response.json();
           throw new Error(errData.message || "Login failed during final step.");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Final Login Error:", err);
-        setError(err.message || "Login failed.");
+        setError(err instanceof Error ? err.message : "Login failed.");
       } finally {
         setLoading(false);
       }

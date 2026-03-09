@@ -29,6 +29,34 @@ export default function App() {
   const [myPreferences, setMyPreferences] = useState<{ type: string; reason: string } | null>(null);
   const [exchangeHistory, setExchangeHistory] = useState<ExchangeData[]>([]);
   const [sentRequests, setSentRequests] = useState<string[]>([]);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleLogout = async () => {
+    setShowLogoutConfirm(false);
+    setIsLoggingOut(true);
+    await new Promise(r => setTimeout(r, 3000)); // animation duration
+    if (session && session.PnrNumber) {
+      try {
+        await fetch(`${API_URL}/api/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pnr: session.PnrNumber })
+        });
+      } catch (e) {
+        console.error("Logout error", e);
+      }
+    }
+    localStorage.removeItem('smartrail_session');
+    localStorage.removeItem('smartrail_history');
+    setSession(null);
+    setStatus('idle');
+    setIsLive(false);
+    setIsLoggingOut(false);
+    socket.disconnect();
+    socket.connect();
+  };
 
 
   const userDetails = useMemo(() => {
@@ -138,6 +166,16 @@ export default function App() {
     socket.on('exchange-request', (data) => {
       console.log("Incoming exchange request:", data);
 
+      // Auto-reject incoming request if an exchange is already active/approved
+      if (activeExchange || status === 'approved') {
+        console.log("Auto-rejecting request due to active exchange:", data.exchangeId);
+        socket.emit('respond-exchange', {
+          exchangeId: data.exchangeId,
+          accepted: false
+        });
+        return;
+      }
+
       // 1. Vibrate Device (Buzz-Pause-Buzz)
       if (navigator.vibrate) {
         navigator.vibrate([200, 100, 200]);
@@ -209,7 +247,7 @@ export default function App() {
       socket.off('exchange-rejected');
       socket.off('exchange-cancelled');
     };
-  }, [session, isLive, userDetails]); // Added isLive dependency to ensure we have latest value when session connects
+  }, [session, isLive, userDetails, status, activeExchange]); // Added dependencies to ensure we have latest values when session connects
 
   const handleGoLive = (preferences?: any) => {
     if (!userDetails || !session) return;
@@ -320,16 +358,19 @@ export default function App() {
 
         if (newSeat !== userDetails.seatNo || newCoach !== userDetails.coach) {
           console.log(`Swapping seat locally: ${userDetails.coach} ${userDetails.seatNo} -> ${newCoach} ${newSeat}`);
-          const updatedSession = JSON.parse(JSON.stringify(session));
-          if (updatedSession.Passenger && updatedSession.Passenger.length > 0) {
-            updatedSession.Passenger[0].SeatNo = newSeat;
-            updatedSession.Passenger[0].Coach = newCoach;
-            setSession(updatedSession);
-          }
+          setSession(prev => {
+            if (!prev) return prev;
+            const updatedSession = JSON.parse(JSON.stringify(prev));
+            if (updatedSession.Passenger && updatedSession.Passenger.length > 0) {
+              updatedSession.Passenger[0].SeatNo = newSeat;
+              updatedSession.Passenger[0].Coach = newCoach;
+            }
+            return updatedSession;
+          });
         }
       }
     }
-  }, [activeExchange]);
+  }, [activeExchange, userDetails]);
 
   // Restore session on mount
   useEffect(() => {
@@ -376,12 +417,27 @@ export default function App() {
   }, [session, isLive, status, userDetails]); // Be careful with loops. status triggers this.
 
 
-  const handleLogin = (data: PnrRecord) => {
-    // Session persistence removed to enforce strict single-session
+  const handleLogin = async (data: PnrRecord) => {
+    setIsLoggingIn(true);
+    await new Promise(r => setTimeout(r, 3000));
     setSession(data);
+    setIsLoggingIn(false);
   };
 
-  if (!session) return <AuthModule onLogin={handleLogin} />;
+  if (!session && !isLoggingIn) return <AuthModule onLogin={handleLogin} />;
+
+  if (isLoggingIn) return (
+    <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-900 animate-in fade-in duration-300">
+      <div className="relative mb-6">
+        <div className="w-20 h-20 rounded-full border-4 border-blue-600/20 border-t-blue-500 animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Train size={28} className="text-blue-400" />
+        </div>
+      </div>
+      <p className="text-white font-black text-sm uppercase tracking-widest animate-pulse">Boarding...</p>
+      <p className="text-slate-500 text-[10px] font-bold mt-2 uppercase tracking-wider">Welcome aboard!</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32 font-sans overflow-x-hidden relative transition-opacity duration-500 opacity-100">
@@ -400,7 +456,7 @@ export default function App() {
               <Train size={10} /> {userDetails?.class} • Coach {userDetails?.coach}
             </div>
             <h1 className="text-xl font-black uppercase tracking-tighter mt-1 leading-none">
-              {session.TrainName}
+              {session?.TrainName}
             </h1>
             <div className="flex items-center gap-2 mt-2 bg-white/10 px-3 py-1 rounded-full w-fit">
               <User size={10} className="text-orange-400" />
@@ -420,34 +476,7 @@ export default function App() {
               </button>
             )}
             <button
-              onClick={async () => {
-                if (session && session.PnrNumber) {
-                  console.log("Initiating UI Logout for:", session.PnrNumber);
-                  try {
-                    // Await the logout to ensure it reaches backend
-                    await fetch(`${API_URL}/api/logout`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ pnr: session.PnrNumber })
-                    });
-                    console.log("Backend logout successful");
-                  } catch (e) {
-                    console.error("Logout error", e);
-                  }
-                } else {
-                  console.warn("No session PNR found during logout");
-                }
-
-                // Clear local state
-                localStorage.removeItem('smartrail_session');
-                localStorage.removeItem('smartrail_history');
-
-                setSession(null);
-                setStatus('idle');
-                setIsLive(false);
-                socket.disconnect();
-                socket.connect();
-              }}
+              onClick={() => setShowLogoutConfirm(true)}
               className="p-3 bg-white/10 rounded-2xl hover:bg-red-500/20 text-blue-200 hover:text-red-200 transition-all active:scale-90 flex items-center gap-2"
             >
               <LogOut size={20} />
@@ -509,6 +538,49 @@ export default function App() {
           <LifeBuoy size={16} /> Support
         </button>
       </nav>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] shadow-2xl mx-6 p-6 w-full max-w-sm animate-in zoom-in-95 duration-200">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <LogOut size={24} className="text-red-500" />
+              </div>
+              <h3 className="text-base font-black text-slate-800">Logout?</h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Are you sure you want to logout from SmartRail? Your active session will end.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-black text-sm hover:bg-slate-200 transition-all active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black text-sm hover:bg-red-600 transition-all active:scale-95 shadow-lg shadow-red-500/30"
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Transition Overlay */}
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-900 animate-in fade-in duration-300">
+          <div className="relative mb-6">
+            <div className="w-20 h-20 rounded-full border-4 border-blue-600/20 border-t-blue-500 animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Train size={28} className="text-blue-400" />
+            </div>
+          </div>
+          <p className="text-white font-black text-sm uppercase tracking-widest animate-pulse">Logging out...</p>
+          <p className="text-slate-500 text-[10px] font-bold mt-2 uppercase tracking-wider">Safe journey!</p>
+        </div>
+      )}
     </div>
   );
 }
