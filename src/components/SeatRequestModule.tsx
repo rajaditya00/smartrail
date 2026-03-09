@@ -170,7 +170,6 @@ export const SeatRequestModule = ({
 
         {/* Pass down selectedCoach rather than displayCoach to map */}
         <CoachVisuals
-          status={status}
           currentSeat={selectedCoach === userCoach ? currentSeat : -1} // Only show the "User" icon if looking at their own coach
           otherBroadcasters={viewedCoachPeers.map(p => p.seatNo)}
           incomingSeats={incomingRequests

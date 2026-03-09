@@ -1,8 +1,6 @@
 import { Radio } from 'lucide-react';
-import type { RequestStatus } from '../types/types';
 
 export interface CoachVisualsProps {
-    status: RequestStatus;
     currentSeat: number;
     otherBroadcasters: number[];
     incomingSeats: number[];
@@ -11,7 +9,6 @@ export interface CoachVisualsProps {
 }
 
 export const CoachVisuals = ({
-    status,
     currentSeat,
     otherBroadcasters,
     incomingSeats,
@@ -74,7 +71,7 @@ export const CoachVisuals = ({
         }
 
         const seatBox = (
-            <div className={`w-12 h-12 sm:w-[3.5rem] sm:h-[3.5rem] rounded-[0.7rem] flex items-center justify-center border transition-all ${boxStyles}`}>
+            <div className={`w-12 h-12 sm:w-[3.5rem] sm:h-[3.5rem] ${seatShape} flex items-center justify-center border transition-all ${boxStyles}`}>
                 {(isLive && !isCurrent && !isIncoming) ? (
                     <Radio size={24} className="text-green-500 animate-pulse drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
                 ) : (
