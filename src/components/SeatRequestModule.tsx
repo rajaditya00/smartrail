@@ -151,22 +151,28 @@ export const SeatRequestModule = ({
   return (
     <div className="space-y-6">
       <div className="relative flex flex-col">
-        {/* Horizontal Coach Tabs */}
-        {status !== 'approved' && (
-          <CoachSelector
-            coaches={availableCoaches}
-            activeCoach={selectedCoach}
-            onSelectCoach={setSelectedCoach}
-            livePeers={relevantPeers}
-            userCoach={userCoach}
-            incomingRequests={incomingRequests}
-            onIncomingClick={() => {
-              setHighlightIncoming(true);
-              incomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              setTimeout(() => setHighlightIncoming(false), 3000);
-            }}
-          />
-        )}
+        <CoachSelector
+          coaches={availableCoaches}
+          activeCoach={selectedCoach}
+          onSelectCoach={(coach) => {
+            // Only allow changing view if not explicitly focusing on the approved coach during finalization
+            if (status !== 'approved' || coach === displayCoach) {
+              setSelectedCoach(coach);
+            } else {
+              // Let them look around but keep the context of what happened? 
+              // Actually, it's fine to let them browse other coaches even while approved.
+              setSelectedCoach(coach);
+            }
+          }}
+          livePeers={relevantPeers}
+          userCoach={userCoach}
+          incomingRequests={incomingRequests}
+          onIncomingClick={() => {
+            setHighlightIncoming(true);
+            incomingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => setHighlightIncoming(false), 3000);
+          }}
+        />
 
         {/* Pass down selectedCoach rather than displayCoach to map */}
         <CoachVisuals
