@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { AuthModule } from './components/AuthModule';
 import { SeatRequestModule } from './components/SeatRequestModule';
 import { SupportModule } from './components/SupportModule';
@@ -115,7 +115,7 @@ export default function App() {
           // Add to history
           setExchangeHistory(prev => [historyItem, ...prev]);
 
-          // Reset Status to allow new broadcasts
+          // Automatically hide the ticket and move to Idle state (which shows Exchange History)
           setStatus('idle');
           setActiveExchange(null);
           // Optional: alert or toast
@@ -124,7 +124,6 @@ export default function App() {
       return () => clearInterval(interval);
     }
   }, [status, activeExchange, userDetails]);
-
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -322,10 +321,12 @@ export default function App() {
     setSentRequests(prev => prev.filter(citations => citations !== targetSocketId));
   };
 
+  const processedExchangeRef = useRef<string | null>(null);
+
   // This executes when exchange is accepted to update local state
   useEffect(() => {
     if (activeExchange && userDetails && session) {
-      if (activeExchange.swappedSeat) {
+      if (activeExchange.swappedSeat && processedExchangeRef.current !== activeExchange.exchangeId) {
         const s1 = activeExchange.swappedSeat.requesterNewSeat;
         const s2 = activeExchange.swappedSeat.targetNewSeat;
 
@@ -339,25 +340,20 @@ export default function App() {
 
         if (s1 !== userDetails.seatNo && s2 === userDetails.seatNo) {
           newSeat = s1;
-          // If I was requester (holding s2? No s2 is what Target gets, i.e. my old seat).
-          // Wait, s2 is targetNewSeat. Target gets my old seat. So s2 === my old seat.
-          // So I am Requester. I move to s1. s1 is in endCoach.
           newCoach = activeExchange.endCoach || userDetails.coach;
         } else if (s2 !== userDetails.seatNo && s1 === userDetails.seatNo) {
           newSeat = s2;
-          // If I was target (holding s1? No s1 is what Requester gets, i.e. my old seat).
-          // s1 is requesterNewSeat. Requester gets my old seat. So s1 === my old seat.
-          // So I am Target. I move to s2. s2 is in startCoach.
           newCoach = activeExchange.startCoach || userDetails.coach;
         } else if (s1 !== userDetails.seatNo) {
           // Fallback: assume s1 if logic is ambiguous or force swap
           newSeat = s1;
-          // Ambiguous case: default to target's coach if available, else keep own
           newCoach = activeExchange.endCoach || userDetails.coach;
         }
 
         if (newSeat !== userDetails.seatNo || newCoach !== userDetails.coach) {
           console.log(`Swapping seat locally: ${userDetails.coach} ${userDetails.seatNo} -> ${newCoach} ${newSeat}`);
+          processedExchangeRef.current = activeExchange.exchangeId as string; // Mark as processed
+
           setSession(prev => {
             if (!prev) return prev;
             const updatedSession = JSON.parse(JSON.stringify(prev));
@@ -367,6 +363,9 @@ export default function App() {
             }
             return updatedSession;
           });
+        } else {
+          // Just mark as processed if no swap needed to prevent infinite loop
+          processedExchangeRef.current = activeExchange.exchangeId as string;
         }
       }
     }
