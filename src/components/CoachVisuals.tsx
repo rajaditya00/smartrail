@@ -58,20 +58,15 @@ export const CoachVisuals = ({
             boxStyles = "bg-blue-600/20 border-blue-500 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)] z-10 scale-105 relative";
             labelStyles = "text-blue-400 font-black";
         } else if (isIncoming) {
-            boxStyles = "bg-orange-500/20 border-orange-500 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.4)] z-10 scale-105 relative ring-2 ring-orange-400";
-            labelStyles = "text-orange-400 font-black";
+            boxStyles = "bg-yellow-500/20 border-yellow-500 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.4)] z-10 scale-105 relative ring-2 ring-yellow-400";
+            labelStyles = "text-yellow-400 font-black";
         } else if (isLive) {
             boxStyles = "bg-green-600/20 border-green-500 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.3)] z-10 scale-105 relative";
             labelStyles = "text-green-400 font-black";
         }
 
-        let seatShape = "rounded-[0.7rem]";
-        if (isCurrent) {
-            seatShape = "rounded-[2rem]"; // Distinct circular/pill shape for own seat
-        }
-
         const seatBox = (
-            <div className={`w-12 h-12 sm:w-[3.5rem] sm:h-[3.5rem] ${seatShape} flex items-center justify-center border transition-all ${boxStyles}`}>
+            <div className={`w-12 h-12 sm:w-[3.5rem] sm:h-[3.5rem] rounded-[0.7rem] flex items-center justify-center border-2 transition-all ${boxStyles}`}>
                 {(isLive && !isCurrent && !isIncoming) ? (
                     <Radio size={24} className="text-green-500 animate-pulse drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
                 ) : (
@@ -129,11 +124,11 @@ export const CoachVisuals = ({
                     {seatGroups.map((group, idx) => (
                         <div key={idx} className="flex justify-between w-full mb-2">
                             {/* Main Cabin pair */}
-                            <div className="w-[65%] border-2 border-white/10 rounded-2xl relative p-4 flex flex-col justify-between" style={{ minHeight: '180px' }}>
+                            <div className="w-[65%] border-[3px] border-white/10 rounded-2xl relative p-4 flex flex-col justify-between" style={{ minHeight: '180px' }}>
                                 {/* Top edge inner curve hint */}
-                                <div className="absolute top-0 left-4 right-4 h-1 border-t-2 border-white/10 opacity-50"></div>
-                                <div className="absolute top-4 left-0 w-2 h-8 border-l-2 border-y-2 rounded-r-xl border-white/10 bg-[#0d121f] -ml-[2px]"></div>
-                                <div className="absolute top-4 right-0 w-2 h-8 border-r-2 border-y-2 rounded-l-xl border-white/10 bg-[#0d121f] -mr-[2px]"></div>
+                                <div className="absolute top-0 left-4 right-4 h-1 border-t-[3px] border-white/10 opacity-50"></div>
+                                <div className="absolute top-4 left-0 w-2 h-8 border-l-[3px] border-y-[3px] rounded-r-xl border-white/10 bg-[#0d121f] -ml-[3px]"></div>
+                                <div className="absolute top-4 right-0 w-2 h-8 border-r-[3px] border-y-[3px] rounded-l-xl border-white/10 bg-[#0d121f] -mr-[3px]"></div>
 
                                 <div className="grid grid-cols-3 gap-x-2 w-full justify-items-center mb-6">
                                     {group.mainTop.map(num => renderSeat(num, getMainLabel(num), false))}
@@ -143,25 +138,25 @@ export const CoachVisuals = ({
                                 </div>
 
                                 {/* Bottom edge inner curve hint */}
-                                <div className="absolute bottom-0 left-4 right-4 h-1 border-b-2 border-white/10 opacity-50"></div>
-                                <div className="absolute bottom-4 left-0 w-2 h-8 border-l-2 border-y-2 rounded-r-xl border-white/10 bg-[#0d121f] -ml-[2px]"></div>
-                                <div className="absolute bottom-4 right-0 w-2 h-8 border-r-2 border-y-2 rounded-l-xl border-white/10 bg-[#0d121f] -mr-[2px]"></div>
+                                <div className="absolute bottom-0 left-4 right-4 h-1 border-b-[3px] border-white/10 opacity-50"></div>
+                                <div className="absolute bottom-4 left-0 w-2 h-8 border-l-[3px] border-y-[3px] rounded-r-xl border-white/10 bg-[#0d121f] -ml-[3px]"></div>
+                                <div className="absolute bottom-4 right-0 w-2 h-8 border-r-[3px] border-y-[3px] rounded-l-xl border-white/10 bg-[#0d121f] -mr-[3px]"></div>
                             </div>
 
                             {/* Side Berths pair */}
-                            <div className="w-[30%] border-2 border-white/10 rounded-2xl relative p-4 flex flex-col justify-between items-center" style={{ minHeight: '180px' }}>
+                            <div className="w-[30%] border-[3px] border-white/10 rounded-2xl relative p-4 flex flex-col justify-between items-center" style={{ minHeight: '180px' }}>
                                 {/* Top edge inner curve hint */}
-                                <div className="absolute top-0 left-4 right-4 h-1 border-t-2 border-white/10 opacity-50"></div>
-                                <div className="absolute top-4 left-0 w-2 h-8 border-l-2 border-y-2 rounded-r-xl border-white/10 bg-[#0d121f] -ml-[2px]"></div>
-                                <div className="absolute top-4 right-0 w-2 h-8 border-r-2 border-y-2 rounded-l-xl border-white/10 bg-[#0d121f] -mr-[2px]"></div>
+                                <div className="absolute top-0 left-4 right-4 h-1 border-t-[3px] border-white/10 opacity-50"></div>
+                                <div className="absolute top-4 left-0 w-2 h-8 border-l-[3px] border-y-[3px] rounded-r-xl border-white/10 bg-[#0d121f] -ml-[3px]"></div>
+                                <div className="absolute top-4 right-0 w-2 h-8 border-r-[3px] border-y-[3px] rounded-l-xl border-white/10 bg-[#0d121f] -mr-[3px]"></div>
 
                                 {renderSeat(group.sideTop, getSideLabel(group.sideTop), false)}
                                 {renderSeat(group.sideBottom, getSideLabel(group.sideBottom), true)}
 
                                 {/* Bottom edge inner curve hint */}
-                                <div className="absolute bottom-0 left-4 right-4 h-1 border-b-2 border-white/10 opacity-50"></div>
-                                <div className="absolute bottom-4 left-0 w-2 h-8 border-l-2 border-y-2 rounded-r-xl border-white/10 bg-[#0d121f] -ml-[2px]"></div>
-                                <div className="absolute bottom-4 right-0 w-2 h-8 border-r-2 border-y-2 rounded-l-xl border-white/10 bg-[#0d121f] -mr-[2px]"></div>
+                                <div className="absolute bottom-0 left-4 right-4 h-1 border-b-[3px] border-white/10 opacity-50"></div>
+                                <div className="absolute bottom-4 left-0 w-2 h-8 border-l-[3px] border-y-[3px] rounded-r-xl border-white/10 bg-[#0d121f] -ml-[3px]"></div>
+                                <div className="absolute bottom-4 right-0 w-2 h-8 border-r-[3px] border-y-[3px] rounded-l-xl border-white/10 bg-[#0d121f] -mr-[3px]"></div>
                             </div>
                         </div>
                     ))}
@@ -179,7 +174,7 @@ export const CoachVisuals = ({
                     <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Available Swap</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-sm bg-orange-500/20 border border-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] animate-pulse"></div>
+                    <div className="w-3 h-3 rounded-sm bg-yellow-500/20 border border-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)] animate-pulse"></div>
                     <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Incoming Request</span>
                 </div>
             </div>

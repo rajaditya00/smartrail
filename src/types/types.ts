@@ -147,6 +147,8 @@ export interface LiveUser {
   coach: string;
   seatNo: number;
   class: string;
+  sourceStation?: string;
+  destinationStation?: string;
   isLive: boolean;
   preferences?: {
     type: string;
@@ -165,6 +167,8 @@ export interface ExchangeData {
     reason?: string;
     preference?: string;
     coach?: string;
+    sourceStation?: string;
+    destinationStation?: string;
   };
   expiresAt?: string;
   swappedSeat?: {

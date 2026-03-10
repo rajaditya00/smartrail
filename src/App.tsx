@@ -259,6 +259,8 @@ export default function App() {
       class: userDetails.class,
       trainNo: session.TrainNo,     // Add TrainNo
       trainName: session.TrainName, // Add TrainName
+      sourceStation: session.SourceStation,
+      destinationStation: session.DestinationStation,
       bookingStatus: `${userDetails.coach}, ${userDetails.seatNo}, GN`,
       preferences // Pass preferences if backend supports it later
     });
@@ -288,7 +290,9 @@ export default function App() {
         seatNo: userDetails.seatNo,
         targetSeat: targetPeer.seatNo,
         reason: myPreferences?.reason || "No Reason Provided",
-        preference: myPreferences?.type || "Any"
+        preference: myPreferences?.type || "Any",
+        sourceStation: session?.SourceStation,
+        destinationStation: session?.DestinationStation
       }
     });
   };
@@ -410,6 +414,8 @@ export default function App() {
         class: userDetails.class,
         trainNo: session.TrainNo,
         trainName: session.TrainName,
+        sourceStation: session.SourceStation,
+        destinationStation: session.DestinationStation,
         bookingStatus: `${userDetails.coach}, ${userDetails.seatNo}, GN`,
       });
     }
@@ -449,38 +455,42 @@ export default function App() {
       )}
 
       <header className="bg-[#00205B] text-white p-6 rounded-b-[3rem] shadow-xl sticky top-0 z-50">
-        <div className="flex justify-between items-center max-w-7xl mx-auto w-full px-4 md:px-8">
-          <div>
+        <div className="flex justify-between items-start sm:items-center gap-4 max-w-7xl mx-auto w-full px-4 md:px-8">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-blue-300 text-[9px] font-black uppercase tracking-widest">
               <Train size={10} /> {userDetails?.class} • Coach {userDetails?.coach}
             </div>
-            <h1 className="text-xl font-black uppercase tracking-tighter mt-1 leading-none">
+            <h1 className="text-xl font-black uppercase tracking-tighter mt-1 leading-tight break-words whitespace-normal break-words w-full">
               {session?.TrainName}
             </h1>
-            <div className="flex items-center gap-2 mt-2 bg-white/10 px-3 py-1 rounded-full w-fit">
-              <User size={10} className="text-orange-400" />
-              <p className="text-[9px] font-bold uppercase tracking-tight">
+            {session?.SourceStation && session?.DestinationStation && (
+              <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest mt-1">
+                {session.SourceStation} → {session.DestinationStation}
+              </p>
+            )}
+            <div className="flex items-center gap-2 mt-2 bg-white/10 px-3 py-1 rounded-full w-fit max-w-full overflow-hidden">
+              <User size={10} className="text-orange-400 shrink-0" />
+              <p className="text-[9px] font-bold uppercase  ">
                 {userDetails?.name} • Seat {userDetails?.seatNo}
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row-reverse gap-2 shrink-0 items-end sm:items-center pt-1 sm:pt-0">
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="p-3 bg-white/10 rounded-2xl hover:bg-red-500/20 text-blue-200 hover:text-red-200 transition-all active:scale-90 flex items-center justify-center gap-2"
+            >
+              <LogOut size={20} />
+            </button>
             {isLive && (
               <button
                 onClick={handleStopLive}
-                className="p-3 rounded-2xl transition-all active:scale-90 flex items-center gap-2 bg-red-500/20 text-red-200"
+                className="p-3 rounded-2xl transition-all active:scale-90 flex items-center justify-center gap-2 bg-red-500/20 text-red-200"
               >
                 <Radio size={20} className="animate-pulse" />
                 <span className="text-[10px] font-black uppercase">Stop Live</span>
               </button>
             )}
-            <button
-              onClick={() => setShowLogoutConfirm(true)}
-              className="p-3 bg-white/10 rounded-2xl hover:bg-red-500/20 text-blue-200 hover:text-red-200 transition-all active:scale-90 flex items-center gap-2"
-            >
-              <LogOut size={20} />
-
-            </button>
           </div>
         </div>
       </header>

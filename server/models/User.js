@@ -14,6 +14,8 @@ const UserSchema = new mongoose.Schema({
     trainNo: { type: String }, // Added to support displaying train details
     trainName: { type: String },
     class: { type: String },
+    sourceStation: { type: String },
+    destinationStation: { type: String },
     preferences: {
         type: { type: String },
         reason: { type: String }

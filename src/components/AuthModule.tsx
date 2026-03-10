@@ -39,6 +39,19 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
 
       if (data.found && data.data) {
         console.log("User found in MongoDB:", data.data);
+        let finalSource = data.data.SourceStation;
+        let finalDest = data.data.DestinationStation;
+
+        if (!finalSource || !finalDest) {
+          const fallbackRecord = Object.values(MOCK_PNR_DATABASE).find(
+            (r) => r.PnrNumber === pnrInput
+          );
+          if (fallbackRecord) {
+            finalSource = fallbackRecord.SourceStation;
+            finalDest = fallbackRecord.DestinationStation;
+          }
+        }
+
         finalUserPayload = {
           pnr: data.data.PnrNumber,
           mobile: data.data.MobileNumber,
@@ -48,7 +61,9 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
           bookingStatus: data.data.Passenger[0].BookingStatus,
           trainNo: data.data.TrainNo,
           trainName: data.data.TrainName,
-          class: data.data.JourneyClass
+          class: data.data.JourneyClass,
+          sourceStation: finalSource,
+          destinationStation: finalDest
         } as unknown as PnrRecord;
       } else {
         // 2. Fallback to Local Mock Data
@@ -69,7 +84,9 @@ export const AuthModule = ({ onLogin }: { onLogin: (data: PnrRecord) => void }) 
             bookingStatus: p.BookingStatus,
             trainNo: record.TrainNo,
             trainName: record.TrainName,
-            class: record.JourneyClass
+            class: record.JourneyClass,
+            sourceStation: record.SourceStation,
+            destinationStation: record.DestinationStation
           } as unknown as PnrRecord;
         }
       }

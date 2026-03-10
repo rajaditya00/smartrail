@@ -41,6 +41,8 @@ app.post('/api/validate-user', async (req, res) => {
                 TrainNo: existingUser.trainNo,
                 TrainName: existingUser.trainName,
                 JourneyClass: existingUser.class,
+                SourceStation: existingUser.sourceStation,
+                DestinationStation: existingUser.destinationStation,
                 Passenger: [{
                     PassengerName: existingUser.passengerName,
                     SeatNo: existingUser.seatNo,
@@ -116,6 +118,8 @@ app.post('/api/login', async (req, res) => {
             TrainNo: user.trainNo,
             TrainName: user.trainName,
             JourneyClass: user.class,
+            SourceStation: user.sourceStation,
+            DestinationStation: user.destinationStation,
             isLive: user.isLive, // Return persistence status
             Passenger: [{
                 PassengerName: user.passengerName,

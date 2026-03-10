@@ -9,7 +9,8 @@ interface CoachSelectorProps {
     userCoach: string;
     livePeers?: LiveUser[];
     incomingRequests?: ExchangeData[];
-    onIncomingClick?: () => void;
+    onIncomingClick?: (coach: string) => void;
+    onLiveClick?: (coach: string) => void;
 }
 
 export const CoachSelector: React.FC<CoachSelectorProps> = ({
@@ -19,7 +20,8 @@ export const CoachSelector: React.FC<CoachSelectorProps> = ({
     userCoach,
     livePeers = [],
     incomingRequests = [],
-    onIncomingClick
+    onIncomingClick,
+    onLiveClick
 }) => {
     if (coaches.length <= 1) return null;
 
@@ -46,11 +48,11 @@ export const CoachSelector: React.FC<CoachSelectorProps> = ({
                     </div>
                     {incomingRequests.length > 0 && onIncomingClick && (
                         <button
-                            onClick={onIncomingClick}
-                            className="flex items-center gap-1 text-[9px] font-black text-white bg-orange-700/20 border border-orange-700/50 px-2 py-1 rounded-md hover:bg-orange-800/30 transition-colors uppercase tracking-tight animate-[pulse_5s_ease-in-out_infinite]"
+                            onClick={() => onIncomingClick(activeCoach)}
+                            className="flex items-center gap-1 text-[9px] font-black text-white bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-md hover:bg-yellow-600/30 transition-colors uppercase tracking-tight"
                         >
-                            <Bell size={10} className="text-orange-400" />
-                            <span className="text-orange-400 uppercase">{incomingRequests.length} Incomming</span>
+                            <Bell size={10} className="text-yellow-400 font-bold" />
+                            <span className="text-yellow-400 font-bold uppercase">{incomingRequests.length} Incoming</span>
                         </button>
                     )}
                 </div>
@@ -71,24 +73,24 @@ export const CoachSelector: React.FC<CoachSelectorProps> = ({
                         const hasIncoming = incomingRequests.some(req => (req.startCoach || req.requester?.coach || userCoach) === coach);
 
                         // Base classes for the simple rounded box
-                        let boxClass = "relative flex flex-col items-center justify-center mt-1 w-12 h-12 rounded-xl border transition-all cursor-pointer overflow-hidden ";
+                        let boxClass = `relative flex flex-col items-center justify-center mt-1 h-12 rounded-xl border transition-all cursor-pointer overflow-hidden ${isUserCoach ? 'w-16' : 'w-12'} `;
 
                         // Text styling inside the box
                         let textClass = "text-sm font-black z-10 ";
 
                         if (hasIncoming) {
-                            boxClass += "bg-orange-500/20 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)] scale-110 animate-[pulse_2s_ease-in-out_infinite] ring-2 ring-orange-400 z-20 ";
-                            textClass += "text-orange-400";
+                            boxClass += "  scale-110   ring-2 ring-yellow-400 z-20 ";
+                            textClass += "text-yellow-400";
                         } else if (isUserCoach) {
                             // User's own coach: Green styling with slightly different shape (more rounded)
                             boxClass += isSelected
-                                ? "bg-green-600/20 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] rounded-3xl scale-105"
-                                : "bg-[#1a2133] border-green-500/50 hover:border-green-400 rounded-3xl";
-                            textClass += "text-green-400";
+                                ? "bg-blue-600/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)] rounded-3xl scale-105"
+                                : "bg-[#1a2133] border-blue-500/50 hover:border-blue-400 rounded-3xl";
+                            textClass += "text-blue-400";
                         } else if (isSelected) {
                             // Selected other coach: Blue styling
-                            boxClass += "bg-blue-600/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)] scale-105";
-                            textClass += "text-blue-400";
+                            boxClass += "bg-blue-300/20 border-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.3)] scale-105";
+                            textClass += "text-blue-200";
                         } else {
                             // Unselected other coach: Default dark flat styling
                             boxClass += "bg-[#1a2133] border-white/10 hover:border-white/30 hover:bg-[#232b42]";
@@ -110,18 +112,31 @@ export const CoachSelector: React.FC<CoachSelectorProps> = ({
                                 </div>
 
                                 {/* Indicators below the box */}
-                                <div className="flex gap-1 h-3 items-center mt-0.5">
+                                <div className="flex gap-1 h-3 items-center mt-0.5 pointer-events-auto">
                                     {isUserCoach && (
                                         <span className="text-[8px] font-black text-green-500 uppercase tracking-widest bg-green-500/10 px-1 py-0.5 rounded flex items-center">
 
                                         </span>
                                     )}
 
-                                    {coachLiveCount > 0 && !isUserCoach && (
-                                        <div className="flex items-center gap-1 bg-green-500/10 px-1 py-0.5 rounded border border-green-500/20">
+                                    {hasIncoming && onIncomingClick && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onIncomingClick(coach); }}
+                                            className="flex items-center gap-1 bg-yellow-500/10 px-1 py-0.5 rounded border border-yellow-500/20 hover:bg-yellow-500/20"
+                                        >
+                                            <span className="w-1 h-1 bg-yellow-500 rounded-full animate-pulse" />
+                                            <span className="text-[8px] font-bold text-yellow-500">{incomingRequests.filter(req => (req.startCoach || req.requester?.coach || userCoach) === coach).length}</span>
+                                        </button>
+                                    )}
+
+                                    {coachLiveCount > 0 && !isUserCoach && onLiveClick && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onLiveClick(coach); }}
+                                            className="flex items-center gap-1 bg-green-500/10 px-1 py-0.5 rounded border border-green-500/20 hover:bg-green-500/20"
+                                        >
                                             <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse" />
                                             <span className="text-[8px] font-bold text-green-500">{coachLiveCount}</span>
-                                        </div>
+                                        </button>
                                     )}
                                 </div>
                             </button>
